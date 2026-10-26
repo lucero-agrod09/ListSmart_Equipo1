@@ -1,33 +1,334 @@
-/* Tema del equipo: cambia aquí los colores */
+
+/* =====================================
+   LISTSMART - ESTILOS PRINCIPALES
+===================================== */
+
 :root {
-  --librero: #5b3a29;
-  --alto-nav: 64px;
-  --bs-link-color: #5b3a29;
-  --bs-link-color-rgb: 91, 58, 41;
-}
-body { background: #f8f5f2; }
+  --listasmart: #168af0;
+  --listasmart-hover: #0b72c7;
+  --fondo: #f4f7fb;
+  --alto-nav: 68px;
 
-/* App Shell: el contenido deja espacio a la barra inferior fija */
+  --bs-primary: #168af0;
+  --bs-primary-rgb: 22, 138, 240;
+  --bs-link-color: #168af0;
+  --bs-link-color-rgb: 22, 138, 240;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  font-family: system-ui, Arial, sans-serif;
+}
+
+/* =====================================
+   APP SHELL
+===================================== */
+
+.app-shell {
+  min-height: 100dvh;
+
+  display: grid;
+
+  grid-template-columns:
+    220px minmax(0, 1fr);
+
+  grid-template-rows:
+    auto auto minmax(0, 1fr);
+}
+
+/* =====================================
+   ENCABEZADO
+===================================== */
+
+.bg-listasmart {
+  background-color: var(--listasmart) !important;
+}
+
+.app-header {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-height: 70px;
+}
+
+.app-header__inner {
+  padding: 12px 24px;
+}
+
+.app-header .navbar-brand {
+  font-size: 1.3rem;
+}
+
+/* =====================================
+   AVISO SIN CONEXION
+===================================== */
+
+.shell-offline-banner {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* =====================================
+   CONTENIDO PRINCIPAL
+===================================== */
+
 .app-main {
-  max-width: 720px;
-  padding-bottom: calc(var(--alto-nav) + 1rem) !important;
-}
-.bottom-nav { height: var(--alto-nav); padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav__link { color: #6c757d; padding: 6px 0; line-height: 1.1; }
-.bottom-nav__link.active { color: var(--librero); font-weight: 600; }
+  grid-column: 2;
+  grid-row: 3;
 
-/* Botones y fondo con el color del equipo */
-.bg-librero { background-color: var(--librero) !important; }
-.btn-librero {
-  --bs-btn-bg: var(--librero); --bs-btn-border-color: var(--librero);
-  --bs-btn-color: #fff; --bs-btn-hover-bg: #47291b; --bs-btn-hover-color: #fff;
-  --bs-btn-disabled-bg: var(--librero);
-}
-.btn-outline-librero {
-  --bs-btn-color: var(--librero); --bs-btn-border-color: var(--librero);
-  --bs-btn-hover-bg: var(--librero); --bs-btn-hover-color: #fff;
+  width: 100%;
+  max-width: 1250px;
+  min-width: 0;
+
+  margin: 0 auto;
+  padding: 30px !important;
 }
 
-/* Tamaños de los skeletons */
-.bloque { height: 72px; }
-.portada-skeleton { min-height: 150px; }
+/* =====================================
+   MENU LATERAL - COMPUTADORA
+===================================== */
+
+.bottom-nav {
+  grid-column: 1;
+  grid-row: 3;
+
+  position: static;
+  width: 100%;
+  height: auto;
+
+  background: #ffffff;
+  border-right: 1px solid #e1eaf3;
+}
+
+.bottom-nav__items {
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+  padding: 22px 12px;
+  margin: 0;
+
+  list-style: none;
+}
+
+.bottom-nav__items .nav-item {
+  width: 100%;
+}
+
+.bottom-nav__link {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  padding: 12px 14px;
+  border-radius: 10px;
+
+  color: #64748b;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.bottom-nav__link:hover {
+  color: var(--listasmart);
+  background: #f0f7ff;
+}
+
+.bottom-nav__link.active {
+  color: var(--listasmart);
+  background: #e8f3ff;
+  font-weight: 700;
+}
+
+.bottom-nav__icon {
+  font-size: 1.3rem;
+}
+
+.bottom-nav__text {
+  font-size: 0.93rem;
+}
+
+/* =====================================
+   BOTONES LISTSMART
+===================================== */
+
+.btn-listasmart {
+  --bs-btn-color: #ffffff;
+  --bs-btn-bg: #168af0;
+  --bs-btn-border-color: #168af0;
+
+  --bs-btn-hover-color: #ffffff;
+  --bs-btn-hover-bg: #0b72c7;
+  --bs-btn-hover-border-color: #0b72c7;
+
+  --bs-btn-disabled-color: #ffffff;
+  --bs-btn-disabled-bg: #168af0;
+}
+
+/* =====================================
+   TARJETAS
+===================================== */
+
+.card {
+  border-radius: 16px;
+}
+
+.card.shadow-sm {
+  box-shadow: 0 4px 16px rgba(
+    25, 75, 130, 0.06
+  ) !important;
+}
+
+/* =====================================
+   SKELETON DE CARGA
+===================================== */
+
+.bloque {
+  height: 72px;
+}
+
+.portada-skeleton {
+  min-height: 150px;
+}
+
+/* =====================================
+   TABLETS
+===================================== */
+
+@media (min-width: 701px) and (max-width: 900px) {
+
+  .app-shell {
+    grid-template-columns:
+      185px minmax(0, 1fr);
+  }
+
+  .app-main {
+    padding: 24px !important;
+  }
+
+}
+
+/* =====================================
+   CELULARES
+===================================== */
+
+@media (max-width: 700px) {
+
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+
+    padding-bottom:
+      calc(
+        var(--alto-nav) +
+        env(safe-area-inset-bottom)
+      );
+  }
+
+  .app-header {
+    min-height: 64px;
+  }
+
+  .app-header__inner {
+    padding: 10px 16px;
+  }
+
+  .app-header .navbar-brand {
+    font-size: 1.1rem;
+  }
+
+  .app-main {
+    flex: 1;
+
+    width: 100%;
+    max-width: none;
+
+    padding: 18px 14px !important;
+  }
+
+  /* BARRA INFERIOR */
+
+  .bottom-nav {
+    position: fixed;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    width: 100%;
+
+    height:
+      calc(
+        var(--alto-nav) +
+        env(safe-area-inset-bottom)
+      );
+
+    z-index: 1030;
+
+    border-right: none;
+    border-top: 1px solid #e1eaf3;
+
+    padding-bottom:
+      env(safe-area-inset-bottom);
+
+    box-shadow:
+      0 -4px 15px rgba(20, 50, 90, 0.06);
+  }
+
+  .bottom-nav__items {
+    display: flex;
+    flex-direction: row;
+
+    align-items: stretch;
+
+    width: 100%;
+    height: var(--alto-nav);
+
+    gap: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .bottom-nav__items .nav-item {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+  }
+
+  .bottom-nav__link {
+    height: 100%;
+
+    display: flex;
+    flex-direction: column;
+
+    justify-content: center;
+    align-items: center;
+
+    gap: 3px;
+
+    padding: 5px 2px;
+    border-radius: 0;
+
+    text-align: center;
+  }
+
+  .bottom-nav__icon {
+    font-size: 1.25rem;
+  }
+
+  .bottom-nav__text {
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
+
+}

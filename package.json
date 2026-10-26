@@ -1,5 +1,5 @@
 {
-  "name": "mi-librero",
+  "name": "listsmart",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,10 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-router": "^7.9.4"
   },
   "devDependencies": {

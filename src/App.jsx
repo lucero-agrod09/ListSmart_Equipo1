@@ -2,23 +2,23 @@ import { lazy } from 'react'
 import { Routes, Route } from 'react-router'
 import AppLayout from './layouts/AppLayout.jsx'
 
-// CONTENIDO: cada vista se descarga aparte (code splitting).
-// El shell (AppLayout) no espera a que lleguen.
-const Biblioteca = lazy(() => import('./views/Biblioteca.jsx'))
-const Agregar = lazy(() => import('./views/Agregar.jsx'))
-const Resenas = lazy(() => import('./views/Resenas.jsx'))
-const Libro = lazy(() => import('./views/Libro.jsx'))
+// Pantallas de ListSmart con carga diferida
+const Inicio = lazy(() => import('./views/Inicio.jsx'))
+const MisListas = lazy(() => import('./views/MisListas.jsx'))
+const NuevaLista = lazy(() => import('./views/NuevaLista.jsx'))
+const Notificaciones = lazy(() => import('./views/Notificaciones.jsx'))
+const Perfil = lazy(() => import('./views/Perfil.jsx'))
 const NoEncontrado = lazy(() => import('./views/NoEncontrado.jsx'))
 
 export default function App() {
   return (
     <Routes>
-      {/* Ruta padre sin path: el App Shell envuelve a todas las vistas */}
       <Route element={<AppLayout />}>
-        <Route index element={<Biblioteca />} />
-        <Route path="agregar" element={<Agregar />} />
-        <Route path="resenas" element={<Resenas />} />
-        <Route path="libro/:isbn" element={<Libro />} />
+        <Route index element={<Inicio />} />
+        <Route path="listas" element={<MisListas />} />
+        <Route path="nueva-lista" element={<NuevaLista />} />
+        <Route path="notificaciones" element={<Notificaciones />} />
+        <Route path="perfil" element={<Perfil />} />
         <Route path="*" element={<NoEncontrado />} />
       </Route>
     </Routes>
