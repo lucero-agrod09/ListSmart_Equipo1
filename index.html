@@ -1,0 +1,110 @@
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+
+    <meta
+      name="description"
+      content="ListSmart: organiza tus compras, listas y pendientes."
+    />
+
+    <meta name="theme-color" content="#168af0" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>ListSmart | Bloc de Notas</title>
+
+    <style>
+      /* PRE-SHELL: visible antes de que cargue React */
+
+      body {
+        margin: 0;
+        font-family: system-ui, Arial, sans-serif;
+        background: #f4f7fb;
+      }
+
+      .pre {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .pre header {
+        height: 70px;
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+        background: #168af0;
+        color: white;
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      .pre main {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .cargando {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        color: #536477;
+      }
+
+      .giro {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        border: 4px solid #d6eaff;
+        border-top-color: #168af0;
+        animation: girar 0.8s linear infinite;
+      }
+
+      .pre nav {
+        height: 64px;
+        background: white;
+        border-top: 1px solid #e1eaf3;
+      }
+
+      @keyframes girar {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root">
+      <!-- React sustituye este Pre-shell al iniciar -->
+
+      <div class="pre">
+        <header>✓ ListSmart</header>
+
+        <main>
+          <div class="cargando" role="status">
+            <div class="giro" aria-hidden="true"></div>
+            <span>Cargando ListSmart...</span>
+          </div>
+        </main>
+
+        <nav aria-hidden="true"></nav>
+      </div>
+    </div>
+
+    <noscript>
+      ListSmart necesita JavaScript para funcionar.
+    </noscript>
+
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

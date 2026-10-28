@@ -1,0 +1,17 @@
+MI LIBRERO - PROYECTO LISTO
+
+1. Abre esta carpeta en VS Code.
+2. Abre una terminal dentro de la carpeta.
+3. Ejecuta: npm install
+4. Ejecuta: npm run lint
+5. Ejecuta: npm run dev
+6. Abre http://localhost:5173/
+
+Para probar el túnel HTTPS en el celular:
+- Terminal 1: npm run dev
+- Terminal 2: npx cloudflared tunnel --url http://localhost:5173
+
+El código sigue el taller de las diapositivas desde la diapositiva 14:
+pre-shell, App Shell, indicador de red, navegación inferior, skeletons,
+ViewErrorBoundary, validación ISBN, Open Library, vistas lazy, 404,
+README con tabla de definición, wireframe y pruebas guiadas.
