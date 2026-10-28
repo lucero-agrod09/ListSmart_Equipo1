@@ -5,13 +5,10 @@
 name: ListSmart - Firebase Hosting Preview
 
 on:
-  pull_request:
+  push:
     branches:
       - develop
-    types:
-      - opened
-      - synchronize
-      - reopened
+    
 
 permissions:
   checks: write
