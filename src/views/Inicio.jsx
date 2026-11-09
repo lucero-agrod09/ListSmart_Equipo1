@@ -3,10 +3,9 @@ import { Link } from 'react-router'
 export default function Inicio() {
   return (
     <section className="py-4">
-      <h1 className="fw-bold">Hola :3</h1>
+      <h1 className="fw-bold">Bienvenido</h1>
 
       <p className="text-secondary">
-        Bienvenido a ListSmart.
         Organiza tus compras, listas y pendientes.
       </p>
 
