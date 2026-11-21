@@ -14,6 +14,11 @@ const secciones = [
     icono: 'bi-card-checklist'
   },
   {
+    to: '/recursos',
+    texto: 'Consultar Productos',
+    icono: 'bi-search'
+  },
+  {
     to: '/nueva-lista',
     texto: 'Nueva lista',
     icono: 'bi-plus-circle'
