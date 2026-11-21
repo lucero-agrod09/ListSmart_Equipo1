@@ -139,6 +139,53 @@ export default defineConfig({
           },
         ],
       },
+
+      // ======================================
+      // CACHÉ OFFLINE DE FAKESTOREAPI
+      // ======================================
+      workbox: {
+        runtimeCaching: [
+          {
+            // Datos de los productos
+            urlPattern: ({ url }) =>
+              url.origin === 'https://fakestoreapi.com' &&
+              (url.pathname === '/products' ||
+                url.pathname.startsWith('/products/')),
+
+            handler: 'NetworkFirst',
+
+            options: {
+              cacheName: 'listsmart-productos-api',
+              networkTimeoutSeconds: 5,
+              cacheableResponse: {
+                statuses: [200],
+              },
+              expiration: {
+                maxEntries: 50,
+              },
+            },
+          },
+          {
+            // Imágenes de los productos
+            urlPattern: ({ url, request }) =>
+              request.destination === 'image' &&
+              url.origin === 'https://fakestoreapi.com' &&
+              url.pathname.startsWith('/img/'),
+
+            handler: 'CacheFirst',
+
+            options: {
+              cacheName: 'listsmart-imagenes-api',
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              expiration: {
+                maxEntries: 80,
+              },
+            },
+          },
+        ],
+      },
     }),
   ],
 
