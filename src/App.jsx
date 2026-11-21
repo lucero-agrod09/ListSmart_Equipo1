@@ -10,6 +10,10 @@ const Notificaciones = lazy(() => import('./views/Notificaciones.jsx'))
 const Perfil = lazy(() => import('./views/Perfil.jsx'))
 const NoEncontrado = lazy(() => import('./views/NoEncontrado.jsx'))
 
+// Pantallas de FakeStoreAPI
+const ListaRecursos = lazy(() => import('./views/ListaRecursos.jsx'))
+const DetalleRecurso = lazy(() => import('./views/DetalleRecurso.jsx'))
+
 export default function App() {
   return (
     <Routes>
@@ -19,6 +23,8 @@ export default function App() {
         <Route path="nueva-lista" element={<NuevaLista />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="perfil" element={<Perfil />} />
+        <Route path="recursos" element={<ListaRecursos />} />
+        <Route path="recursos/:id" element={<DetalleRecurso />} />
         <Route path="*" element={<NoEncontrado />} />
       </Route>
     </Routes>

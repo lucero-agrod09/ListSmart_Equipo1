@@ -332,3 +332,8 @@ body {
   }
 
 }
+
+.ayuda-ios {
+  position: absolute; top: 100%;
+  right: .75rem; max-width: 260px;
+}
