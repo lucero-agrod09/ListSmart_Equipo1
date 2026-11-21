@@ -1,4 +1,6 @@
 
+import FotosListas from '../components/FotosListas';
+
 export default function NuevaLista() {
   return (
     <section className="py-4">
@@ -27,6 +29,8 @@ export default function NuevaLista() {
 
         </div>
       </div>
+
+      <FotosListas />
 
     </section>
   )
