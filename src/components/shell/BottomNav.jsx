@@ -1,4 +1,3 @@
-
 import { NavLink } from 'react-router'
 
 // Secciones principales de ListSmart
@@ -17,16 +16,6 @@ const secciones = [
     to: '/recursos',
     texto: 'Consultar Productos',
     icono: 'bi-search'
-  },
-  {
-    to: '/nueva-lista',
-    texto: 'Nueva lista',
-    icono: 'bi-plus-circle'
-  },
-  {
-    to: '/notificaciones',
-    texto: 'Avisos',
-    icono: 'bi-bell'
   },
   {
     to: '/perfil',

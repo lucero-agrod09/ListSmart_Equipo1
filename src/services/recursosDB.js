@@ -1,3 +1,4 @@
+import { auth } from '../config/firebase';
 
 const NOMBRE_BD = 'ListSmartAPI';
 const ALMACEN = 'datos';
@@ -78,19 +79,42 @@ export function obtenerCatalogo() {
   return leer('catalogo');
 }
 
-// Obtener últimos productos consultados
+// Obtener UID de la cuenta activa
+async function obtenerUid() {
+  await auth.authStateReady();
+  return auth.currentUser?.uid ?? null;
+}
+
+// Obtener historial de la cuenta activa
 export async function obtenerHistorial() {
-  return (await leer('historial')) ?? [];
+  const uid = await obtenerUid();
+
+  if (!uid) return [];
+
+  const historial = await leer(`historial:${uid}`);
+
+  // Evitar devolver datos si cambió la sesión
+  if (auth.currentUser?.uid !== uid) return [];
+
+  return historial ?? [];
 }
 
 // Registrar uno de los últimos 5 productos
 export async function registrarConsulta(recurso) {
-  const historial = await obtenerHistorial();
+  const uid = await obtenerUid();
+
+  if (!uid) return;
+
+  const clave = `historial:${uid}`;
+  const historial = (await leer(clave)) ?? [];
+
+  // Comprobar que continúa la misma sesión
+  if (auth.currentUser?.uid !== uid) return;
 
   const actualizado = [
     recurso,
     ...historial.filter((item) => item.id !== recurso.id),
   ].slice(0, 5);
 
-  await guardar('historial', actualizado);
+  await guardar(clave, actualizado);
 }
