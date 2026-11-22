@@ -1,0 +1,331 @@
+/* =====================================
+   LISTSMART - DISEÑO DE MIS LISTAS
+   Inspirado en Ritmo(Web de Prueba)
+===================================== */
+
+.listas-page {
+  --listas-azul: #168af0;
+  --listas-borde: #e5eaf1;
+  --listas-texto: #263445;
+  --listas-suave: #f7f9fc;
+
+  color: var(--listas-texto);
+}
+
+/* =====================================
+   ENCABEZADO
+===================================== */
+
+.listas-page > .mb-4:first-child::before {
+  content: 'TU ESPACIO · LISTSMART';
+  display: block;
+  margin-bottom: 12px;
+
+  color: #168af0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.listas-page h1 {
+  font-size: clamp(1.8rem, 3vw, 2.3rem);
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.listas-page h2,
+.listas-page h3 {
+  letter-spacing: -0.4px;
+}
+
+.listas-page .text-secondary {
+  color: #8290a0 !important;
+}
+
+/* =====================================
+   TARJETAS
+===================================== */
+
+.listas-page .card {
+  background: #ffffff;
+
+  border: 1px solid var(--listas-borde) !important;
+  border-radius: 14px;
+
+  box-shadow:
+    0 4px 18px rgba(30, 65, 110, 0.035) !important;
+
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.listas-page .card:hover {
+  border-color: #d4e1ee !important;
+
+  box-shadow:
+    0 6px 22px rgba(30, 65, 110, 0.065) !important;
+}
+
+/* =====================================
+   TARJETAS DE ESTADÍSTICAS
+===================================== */
+
+.listas-page > .row.g-3.mb-4 .card {
+  min-height: 115px;
+}
+
+.listas-page > .row.g-3.mb-4 .col-4:first-child .card {
+  background: linear-gradient(
+    135deg,
+    #edf6ff,
+    #ffffff 85%
+  );
+}
+
+.listas-page > .row.g-3.mb-4 .col-4:nth-child(2) .card {
+  background: linear-gradient(
+    135deg,
+    #fff9ef,
+    #ffffff 85%
+  );
+}
+
+.listas-page > .row.g-3.mb-4 .col-4:nth-child(3) .card {
+  background: linear-gradient(
+    135deg,
+    #eefaf4,
+    #ffffff 85%
+  );
+}
+
+.listas-page > .row.g-3.mb-4 .card h2 {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: #263445;
+}
+
+/* =====================================
+   FORMULARIOS
+===================================== */
+
+.listas-page .form-control,
+.listas-page .form-select {
+  min-height: 44px;
+
+  border: 1px solid var(--listas-borde);
+  border-radius: 9px;
+
+  background-color: #ffffff;
+  color: var(--listas-texto);
+
+  font-size: 0.9rem;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.listas-page .form-control:focus,
+.listas-page .form-select:focus {
+  border-color: var(--listas-azul);
+
+  box-shadow:
+    0 0 0 3px rgba(22, 138, 240, 0.12);
+}
+
+.listas-page .form-control::placeholder {
+  color: #a0aab6;
+}
+
+.listas-page .form-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #536273;
+}
+
+/* =====================================
+   BOTONES
+===================================== */
+
+.listas-page .btn-listasmart {
+  border-radius: 9px;
+  padding: 10px 18px;
+
+  font-size: 0.88rem;
+  font-weight: 600;
+
+  box-shadow:
+    0 3px 10px rgba(22, 138, 240, 0.12);
+}
+
+.listas-page .btn-listasmart:hover {
+  transform: translateY(-1px);
+}
+
+.listas-page .btn {
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* =====================================
+   LISTAS GUARDADAS
+===================================== */
+
+.listas-page .col-lg-4 .card-body > .btn.w-100 {
+  border-radius: 9px;
+
+  padding: 14px;
+  text-align: left;
+}
+
+.listas-page .col-lg-4 .btn-light {
+  background: var(--listas-suave);
+  border: 1px solid var(--listas-borde);
+
+  color: #475569;
+}
+
+.listas-page .col-lg-4 .btn-light:hover {
+  background: #eaf4ff;
+  color: var(--listas-azul);
+}
+
+.listas-page .col-lg-4 .btn-primary {
+  background: var(--listas-azul);
+  border-color: var(--listas-azul);
+}
+
+.listas-page .col-lg-4 .btn-link {
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.listas-page .col-lg-4 .btn-link:hover {
+  text-decoration: underline;
+}
+
+/* =====================================
+   BARRA DE PROGRESO
+===================================== */
+
+.listas-page .progress {
+  background-color: #eaf0f6;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.listas-page .progress-bar {
+  background-color: var(--listas-azul);
+  border-radius: 10px;
+
+  transition: width 0.3s ease;
+}
+
+/* =====================================
+   PENDIENTES
+===================================== */
+
+.listas-page .list-group {
+  border: 1px solid var(--listas-borde);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.listas-page .list-group-item {
+  min-height: 65px;
+  padding: 14px 16px;
+
+  border: 0;
+  border-bottom: 1px solid #edf0f4;
+
+  background: #ffffff;
+
+  transition: background-color 0.2s ease;
+}
+
+.listas-page .list-group-item:last-child {
+  border-bottom: 0;
+}
+
+.listas-page .list-group-item:hover {
+  background: #f8fbff;
+}
+
+.listas-page .form-check-input {
+  width: 20px;
+  height: 20px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+  border-color: #cbd5e1;
+
+  cursor: pointer;
+}
+
+.listas-page .form-check-input:checked {
+  background-color: var(--listas-azul);
+  border-color: var(--listas-azul);
+}
+
+.listas-page .list-group-item .btn-outline-danger {
+  border: none;
+  border-radius: 8px;
+
+  color: #a0aab6;
+  background: transparent;
+}
+
+.listas-page .list-group-item .btn-outline-danger:hover {
+  color: #dc3545;
+  background: #fff0f0;
+}
+
+/* =====================================
+   RESPONSIVIDAD
+===================================== */
+
+@media (max-width: 700px) {
+
+  .listas-page h1 {
+    font-size: 1.7rem;
+  }
+
+  .listas-page > .row.g-3.mb-4 .card {
+    min-height: 100px;
+  }
+
+  .listas-page > .row.g-3.mb-4 .card-body {
+    padding: 12px !important;
+  }
+
+  .listas-page > .row.g-3.mb-4 .card h2 {
+    font-size: 1.6rem;
+  }
+
+  .listas-page > .row.g-3.mb-4 .card p {
+    font-size: 0.75rem;
+  }
+
+  .listas-page .card-body.p-4 {
+    padding: 18px !important;
+  }
+
+  .listas-page .list-group-item {
+    padding: 12px;
+    gap: 10px !important;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listas-page .card,
+  .listas-page .btn,
+  .listas-page .progress-bar {
+    transition: none;
+  }
+}
