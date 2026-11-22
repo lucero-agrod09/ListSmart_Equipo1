@@ -20,8 +20,8 @@ function abrirBD() {
   });
 }
 
-// Consultar y modificar listas de una cuenta
-async function consultar(uid, modificar) {
+// Consultar o modificar las listas de una cuenta
+async function consultar(uid, modificar, completo = false) {
   if (!uid) {
     throw new Error('Debes iniciar sesión.');
   }
@@ -37,22 +37,64 @@ async function consultar(uid, modificar) {
     const almacen = tx.objectStore(ALMACEN);
     const solicitud = almacen.get(uid);
 
-    let resultado = [];
+    let resultado;
     let errorPropio = null;
 
     solicitud.onsuccess = () => {
       try {
-        const actuales = Array.isArray(solicitud.result?.listas)
-          ? solicitud.result.listas
+        const registro = solicitud.result ?? {
+          uid,
+          listas: [],
+          pendientes: [],
+          nubePreparada: false
+        };
+
+        const actuales = Array.isArray(registro.listas)
+          ? registro.listas
           : [];
 
-        resultado = modificar
-          ? modificar(actuales)
-          : actuales;
+        const pendientes = Array.isArray(registro.pendientes)
+          ? registro.pendientes
+          : [];
 
-        if (modificar) {
-          almacen.put({ uid, listas: resultado });
+        // Consultar sin modificar
+        if (!modificar) {
+          resultado = completo
+            ? {
+                ...registro,
+                listas: actuales,
+                pendientes,
+                nubePreparada: registro.nubePreparada === true
+              }
+            : actuales;
+
+          return;
         }
+
+        // Aplicar modificación local
+        const cambio = modificar(actuales);
+
+        const cambiosPendientes = new Map(
+          pendientes.map((item) => [item.id, item])
+        );
+
+        // Conservar la última operación de cada lista
+        for (const item of cambio.cambios) {
+          cambiosPendientes.set(item.id, {
+            ...item,
+            token: crypto.randomUUID()
+          });
+        }
+
+        resultado = cambio.listas;
+
+        almacen.put({
+          ...registro,
+          uid,
+          listas: resultado,
+          pendientes: [...cambiosPendientes.values()]
+        });
+
       } catch (error) {
         errorPropio = error;
         tx.abort();
@@ -75,9 +117,14 @@ async function consultar(uid, modificar) {
   });
 }
 
-// Obtener listas del usuario
+// Obtener las listas de la cuenta
 export function obtenerListas(uid) {
   return consultar(uid);
+}
+
+// Obtener listas y operaciones para sincronización
+export function obtenerEstadoListas(uid) {
+  return consultar(uid, null, true);
 }
 
 // Crear una lista
@@ -92,24 +139,30 @@ export function crearLista(uid, nombre, categoria) {
     throw new Error('Selecciona una categoría válida.');
   }
 
-  return consultar(uid, (listas) => [
-    {
+  return consultar(uid, (listas) => {
+    const nueva = {
       id: crypto.randomUUID(),
       nombre: titulo,
       categoria,
       fechaCreacion: new Date().toISOString(),
-      tareas: [],
-    },
-    ...listas
-  ]);
+      tareas: []
+    };
+
+    return {
+      listas: [nueva, ...listas],
+      cambios: [{ id: nueva.id, tipo: 'guardar' }]
+    };
+  });
 }
 
 // Eliminar una lista
 export function eliminarLista(uid, listaId) {
-  return consultar(
-    uid,
-    (listas) => listas.filter((lista) => lista.id !== listaId)
-  );
+  return consultar(uid, (listas) => ({
+    listas: listas.filter(
+      (lista) => lista.id !== listaId
+    ),
+    cambios: [{ id: listaId, tipo: 'eliminar' }]
+  }));
 }
 
 // Agregar una tarea
@@ -125,29 +178,32 @@ export function agregarTarea(uid, listaId, titulo, fecha) {
       throw new Error('La lista ya no existe.');
     }
 
-    return listas.map((lista) =>
-      lista.id === listaId
-        ? {
-            ...lista,
-            tareas: [
-              {
-                id: crypto.randomUUID(),
-                titulo: texto,
-                fecha,
-                completada: false
-              },
-              ...lista.tareas
-            ]
-          }
-        : lista
-    );
+    return {
+      listas: listas.map((lista) =>
+        lista.id === listaId
+          ? {
+              ...lista,
+              tareas: [
+                {
+                  id: crypto.randomUUID(),
+                  titulo: texto,
+                  fecha,
+                  completada: false
+                },
+                ...lista.tareas
+              ]
+            }
+          : lista
+      ),
+      cambios: [{ id: listaId, tipo: 'guardar' }]
+    };
   });
 }
 
-// Marcar o desmarcar tarea completada
+// Marcar o desmarcar una tarea
 export function alternarTarea(uid, listaId, tareaId) {
-  return consultar(uid, (listas) =>
-    listas.map((lista) =>
+  return consultar(uid, (listas) => ({
+    listas: listas.map((lista) =>
       lista.id === listaId
         ? {
             ...lista,
@@ -158,14 +214,15 @@ export function alternarTarea(uid, listaId, tareaId) {
             )
           }
         : lista
-    )
-  );
+    ),
+    cambios: [{ id: listaId, tipo: 'guardar' }]
+  }));
 }
 
 // Eliminar una tarea
 export function eliminarTarea(uid, listaId, tareaId) {
-  return consultar(uid, (listas) =>
-    listas.map((lista) =>
+  return consultar(uid, (listas) => ({
+    listas: listas.map((lista) =>
       lista.id === listaId
         ? {
             ...lista,
@@ -174,6 +231,7 @@ export function eliminarTarea(uid, listaId, tareaId) {
             )
           }
         : lista
-    )
-  );
+    ),
+    cambios: [{ id: listaId, tipo: 'guardar' }]
+  }));
 }
