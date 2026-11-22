@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { onAuthStateChanged } from 'firebase/auth';
 
+import FotosListas from '../components/FotosListas';
 import '../styles/listas.css';
 
 import { auth } from '../config/firebase';
@@ -355,6 +356,13 @@ export default function MisListas() {
 
           </form>
 
+        </div>
+      </div>
+
+      {/* Fotografiar listas */}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+          <FotosListas />
         </div>
       </div>
 
