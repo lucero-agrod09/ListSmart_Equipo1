@@ -1,20 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { onAuthStateChanged } from 'firebase/auth';
 
-import FotosListas from '../components/FotosListas';
-import '../styles/listas.css';
-
 import { auth } from '../config/firebase';
+import { sincronizarListas } from '../services/listasSync';
 
 import {
   obtenerListas,
+  obtenerEstadoListas,
   crearLista,
   eliminarLista,
   agregarTarea,
   alternarTarea,
   eliminarTarea
 } from '../services/listasDB';
+
+import FotosListas from '../components/FotosListas';
+import '../styles/listas.css';
 
 export default function MisListas() {
   const [uid, setUid] = useState(undefined);
@@ -34,7 +36,15 @@ export default function MisListas() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
 
-  // Obtener sesión y cargar las listas del usuario
+  // Estado de sincronización
+  const [sincronizando, setSincronizando] = useState(false);
+  const [mensajeNube, setMensajeNube] = useState('');
+  const cambiosLocales = useRef(0);
+
+// Solicitar una nueva sincronización
+  const [solicitudSync, setSolicitudSync] = useState(0);
+
+  // Obtener sesión y listas locales
   useEffect(() => {
     let activo = true;
     let version = 0;
@@ -42,10 +52,13 @@ export default function MisListas() {
     const cancelar = onAuthStateChanged(auth, async (usuario) => {
       const actual = ++version;
 
+      cambiosLocales.current++;
       setUid(usuario?.uid ?? null);
       setListas([]);
       setListaId(null);
       setError('');
+      setMensajeNube('');
+      setSincronizando(false);
 
       if (!usuario) {
         setCargando(false);
@@ -78,9 +91,11 @@ export default function MisListas() {
     };
   }, []);
 
-  // Ejecutar operaciones y actualizar las listas
+  // Ejecutar cambios en IndexedDB
   async function ejecutar(operacion, alTerminar) {
-    if (guardando || !uid) return;
+    if (guardando || !uid || auth.currentUser?.uid !== uid) {
+      return;
+    }
 
     setGuardando(true);
     setError('');
@@ -88,8 +103,17 @@ export default function MisListas() {
     try {
       const actualizadas = await operacion();
 
+      if (auth.currentUser?.uid !== uid) return;
+
+      cambiosLocales.current++;
       setListas(actualizadas);
+      setMensajeNube('Tienes cambios locales pendientes de sincronizar.');
+
       alTerminar?.(actualizadas);
+
+      // Intentar sincronizar después del guardado local
+      setSolicitudSync((numero) => numero + 1);
+      
     } catch (e) {
       setError(e.message || 'No se pudieron guardar los cambios.');
     } finally {
@@ -97,7 +121,121 @@ export default function MisListas() {
     }
   }
 
-  // Crear lista
+  // Sincronizar listas con Cloud Firestore
+  
+  // Sincronización manual
+  function sincronizarAhora() {
+    setSolicitudSync((numero) => numero + 1);
+  }
+
+  // Sincronizar automáticamente al iniciar sesión,
+  // guardar cambios o solicitar una sincronización
+  useEffect(() => {
+    if (!uid || cargando) return;
+
+    let cancelada = false;
+
+    async function sincronizarAutomaticamente() {
+      if (auth.currentUser?.uid !== uid) return;
+
+      // No intentar contactar Firebase sin conexión
+      if (!navigator.onLine) {
+        setSincronizando(false);
+        setMensajeNube(
+          'Sin conexión. Tus cambios permanecen guardados en este dispositivo.'
+        );
+        return;
+      }
+
+      setSincronizando(true);
+      setMensajeNube('Sincronizando con Firebase...');
+
+      try {
+        // Varias pasadas por si se guardaron cambios
+        // mientras otra sincronización estaba en curso
+        for (let pasada = 0; pasada < 5; pasada++) {
+          const versionAntes = cambiosLocales.current;
+
+          await sincronizarListas(uid);
+
+          if (
+            cancelada ||
+            auth.currentUser?.uid !== uid
+          ) {
+            return;
+          }
+
+          const estado = await obtenerEstadoListas(uid);
+
+          if (
+            cancelada ||
+            auth.currentUser?.uid !== uid
+          ) {
+            return;
+          }
+
+          // No reemplazar cambios recientes de la interfaz
+          if (cambiosLocales.current === versionAntes) {
+            setListas(estado.listas);
+          }
+
+          if (estado.pendientes.length === 0) {
+            setMensajeNube(
+              'Tus listas están sincronizadas con Firebase.'
+            );
+            return;
+          }
+        }
+
+        if (!cancelada) {
+          setMensajeNube(
+            'Quedan cambios pendientes. Puedes volver a sincronizar.'
+          );
+        }
+      } catch {
+        if (
+          !cancelada &&
+          auth.currentUser?.uid === uid
+        ) {
+          setMensajeNube(
+            'No se pudo sincronizar. Tus cambios siguen guardados localmente.'
+          );
+        }
+      } finally {
+        if (
+          !cancelada &&
+          auth.currentUser?.uid === uid
+        ) {
+          setSincronizando(false);
+        }
+      }
+    }
+
+    sincronizarAutomaticamente();
+
+    return () => {
+      cancelada = true;
+    };
+  }, [uid, cargando, solicitudSync]);
+
+  // Volver a intentar cuando regrese la conexión
+  useEffect(() => {
+    function alRecuperarConexion() {
+      setSolicitudSync((numero) => numero + 1);
+    }
+
+    window.addEventListener('online', alRecuperarConexion);
+
+    return () => {
+      window.removeEventListener(
+        'online',
+        alRecuperarConexion
+      );
+    };
+  }, []);
+
+
+  // Crear una lista
   function guardarLista(e) {
     e.preventDefault();
 
@@ -112,7 +250,7 @@ export default function MisListas() {
     );
   }
 
-  // Eliminar lista
+  // Eliminar una lista
   function borrarLista(lista) {
     if (!window.confirm(`¿Eliminar la lista "${lista.nombre}"?`)) {
       return;
@@ -127,6 +265,12 @@ export default function MisListas() {
       }
     );
   }
+
+  // Lista seleccionada
+  const listaSeleccionada =
+    listas.find((lista) => lista.id === listaId) ??
+    listas[0] ??
+    null;
 
   // Agregar pendiente
   function guardarTarea(e) {
@@ -156,19 +300,15 @@ export default function MisListas() {
 
   const completadas = listas.reduce(
     (total, lista) =>
-      total + lista.tareas.filter((tarea) => tarea.completada).length,
+      total + lista.tareas.filter(
+        (tarea) => tarea.completada
+      ).length,
     0
   );
 
   const pendientes = totalTareas - completadas;
 
-  // Lista que se está consultando
-  const listaSeleccionada =
-    listas.find((lista) => lista.id === listaId) ??
-    listas[0] ??
-    null;
-
-  // Progreso de la lista seleccionada
+  // Progreso
   const totalLista = listaSeleccionada?.tareas.length ?? 0;
 
   const hechasLista = listaSeleccionada?.tareas.filter(
@@ -179,7 +319,7 @@ export default function MisListas() {
     ? Math.round((hechasLista / totalLista) * 100)
     : 0;
 
-  // Buscar y filtrar tareas
+  // Buscar y filtrar
   const tareasFiltradas = (
     listaSeleccionada?.tareas ?? []
   ).filter((tarea) => {
@@ -197,16 +337,18 @@ export default function MisListas() {
 
   if (cargando || uid === undefined) {
     return (
-      <section className="py-4">
-        <p className="text-secondary">Cargando mis listas...</p>
+      <section className="py-4 listas-page">
+        <p className="text-secondary">
+          Cargando mis listas...
+        </p>
       </section>
     );
   }
 
   if (!uid) {
     return (
-      <section className="py-4">
-        <h1 className="fw-bold">Mis listas</h1>
+      <section className="py-4 listas-page">
+        <h1 className="fw-bold">📋 Mis listas</h1>
 
         <div className="card border-0 shadow-sm mt-4">
           <div className="card-body p-4 text-center">
@@ -233,12 +375,12 @@ export default function MisListas() {
   }
 
   return (
-  <section className="py-4 listas-page">
+    <section className="py-4 listas-page">
 
       {/* Encabezado */}
       <div className="mb-4">
         <h1 className="fw-bold mb-2">
-          Mis listas
+          📋 Mis listas
         </h1>
 
         <p className="text-secondary">
@@ -252,12 +394,8 @@ export default function MisListas() {
         <div className="col-4">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-3">
-              <p className="small text-secondary mb-1">
-                Listas
-              </p>
-              <h2 className="h3 fw-bold mb-0">
-                {listas.length}
-              </h2>
+              <p className="small text-secondary mb-1">Listas</p>
+              <h2 className="h3 fw-bold mb-0">{listas.length}</h2>
             </div>
           </div>
         </div>
@@ -265,12 +403,8 @@ export default function MisListas() {
         <div className="col-4">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-3">
-              <p className="small text-secondary mb-1">
-                Pendientes
-              </p>
-              <h2 className="h3 fw-bold mb-0">
-                {pendientes}
-              </h2>
+              <p className="small text-secondary mb-1">Pendientes</p>
+              <h2 className="h3 fw-bold mb-0">{pendientes}</h2>
             </div>
           </div>
         </div>
@@ -278,12 +412,8 @@ export default function MisListas() {
         <div className="col-4">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-3">
-              <p className="small text-secondary mb-1">
-                Hechas
-              </p>
-              <h2 className="h3 fw-bold mb-0 text-primary">
-                {completadas}
-              </h2>
+              <p className="small text-secondary mb-1">Hechas</p>
+              <h2 className="h3 fw-bold mb-0 text-primary">{completadas}</h2>
             </div>
           </div>
         </div>
@@ -295,6 +425,50 @@ export default function MisListas() {
           {error}
         </div>
       )}
+
+      {/* Sincronización con Firebase */}
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body p-4">
+
+          <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
+
+            <div>
+              <h2 className="h5 fw-bold mb-1">
+                <i className="bi bi-cloud-arrow-up me-2 text-primary"></i>
+                Sincronización en la nube
+              </h2>
+
+              <p className="small text-secondary mb-0">
+                Guarda tus listas en Firebase para consultarlas
+                desde otros dispositivos.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-listasmart"
+              onClick={sincronizarAhora}
+              disabled={sincronizando || guardando}
+            >
+              <i className="bi bi-arrow-repeat me-2"></i>
+              {sincronizando
+                ? 'Sincronizando...'
+                : 'Sincronizar con Firebase'}
+            </button>
+
+          </div>
+
+          {mensajeNube && (
+            <p
+              className="small text-secondary mt-3 mb-0"
+              role="status"
+            >
+              {mensajeNube}
+            </p>
+          )}
+
+        </div>
+      </div>
 
       {/* Crear lista */}
       <div className="card border-0 shadow-sm mb-4">
@@ -379,7 +553,6 @@ export default function MisListas() {
             <div className="d-flex flex-column gap-2">
 
               {listas.map((lista) => {
-
                 const hechas = lista.tareas.filter(
                   (tarea) => tarea.completada
                 ).length;
@@ -432,7 +605,7 @@ export default function MisListas() {
 
           </div>
 
-          {/* Contenido de lista seleccionada */}
+          {/* Lista seleccionada */}
           <div className="col-lg-8">
 
             {listaSeleccionada && (
@@ -447,7 +620,7 @@ export default function MisListas() {
                     {listaSeleccionada.categoria}
                   </p>
 
-                  {/* Barra de progreso */}
+                  {/* Progreso */}
                   <div className="d-flex justify-content-between mb-2">
                     <span className="small text-secondary">
                       Progreso
@@ -472,7 +645,7 @@ export default function MisListas() {
                     ></div>
                   </div>
 
-                  {/* Agregar tarea */}
+                  {/* Agregar pendiente */}
                   <h3 className="h6 fw-bold mb-3">
                     Agregar pendiente
                   </h3>
@@ -517,7 +690,7 @@ export default function MisListas() {
 
                   </form>
 
-                  {/* Buscar tareas */}
+                  {/* Buscar pendientes */}
                   <div className="row g-2 mb-3">
 
                     <div className="col-md-7">
@@ -546,7 +719,7 @@ export default function MisListas() {
 
                   </div>
 
-                  {/* Lista de tareas */}
+                  {/* Tareas */}
                   {tareasFiltradas.length === 0 ? (
 
                     <p className="text-secondary small">
@@ -578,7 +751,10 @@ export default function MisListas() {
                             )}
                           />
 
-                          <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                          <div
+                            className="flex-grow-1"
+                            style={{ minWidth: 0 }}
+                          >
 
                             <span
                               className={
@@ -630,7 +806,7 @@ export default function MisListas() {
         </div>
       )}
 
-      {/* Estado vacío */}
+      {/* Sin listas */}
       {listas.length === 0 && (
         <div className="card border-0 shadow-sm">
           <div className="card-body p-4 text-center">
