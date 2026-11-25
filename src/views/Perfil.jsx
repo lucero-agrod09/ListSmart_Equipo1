@@ -14,19 +14,79 @@ import {
   comprobarVerificacionCorreo
 } from '../services/verificacionCorreo';
 
+import {
+  iniciarSesionGoogle,
+  vincularCuentaGoogle
+} from '../services/accesoGoogle';
+
+// Traducir errores de Firebase
+function mensajeError(codigo) {
+  switch (codigo) {
+    case 'auth/email-already-in-use':
+      return 'Este correo ya está registrado.';
+
+    case 'auth/invalid-email':
+      return 'El correo electrónico no es válido.';
+
+    case 'auth/weak-password':
+      return 'La contraseña es demasiado débil.';
+
+    case 'auth/invalid-credential':
+      return 'Correo o contraseña incorrectos.';
+
+    case 'auth/user-disabled':
+      return 'Esta cuenta ha sido deshabilitada.';
+
+    case 'auth/too-many-requests':
+      return 'Demasiados intentos. Intenta más tarde.';
+
+    case 'auth/network-request-failed':
+      return 'No hay conexión con Firebase.';
+
+    case 'auth/operation-not-allowed':
+      return 'Este método de acceso no está habilitado.';
+
+    case 'auth/popup-closed-by-user':
+      return 'Se cerró la ventana de Google sin completar el acceso.';
+
+    case 'auth/cancelled-popup-request':
+      return 'Se canceló la solicitud de acceso con Google.';
+
+    case 'auth/popup-blocked':
+      return 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes para ListSmart.';
+
+    case 'auth/unauthorized-domain':
+      return 'El dominio de ListSmart no está autorizado en Firebase Authentication.';
+
+    case 'auth/account-exists-with-different-credential':
+      return 'Ya existe una cuenta con ese correo. Inicia sesión con tu contraseña y después vincula Google desde Perfil.';
+
+    case 'auth/credential-already-in-use':
+      return 'Esta cuenta de Google ya está vinculada a otra cuenta de Firebase. No se modificaron tus listas.';
+
+    case 'auth/provider-already-linked':
+      return 'Google ya está vinculado a esta cuenta.';
+
+    case 'auth/requires-recent-login':
+      return 'Por seguridad, cierra sesión, vuelve a iniciarla e intenta nuevamente.';
+
+    default:
+      return 'Ocurrió un error. Intenta nuevamente.';
+  }
+}
+
 export default function Perfil() {
   const [usuario, setUsuario] = useState(undefined);
   const [registro, setRegistro] = useState(false);
 
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
-
-  // Mostrar u ocultar contraseña
   const [mostrarContrasena, setMostrarContrasena] = useState(false);
 
   const [verificado, setVerificado] = useState(false);
-  const [cargando, setCargando] = useState(false);
+  const [googleVinculado, setGoogleVinculado] = useState(false);
 
+  const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
 
@@ -35,12 +95,18 @@ export default function Perfil() {
     const cancelar = onAuthStateChanged(auth, (user) => {
       setUsuario(user);
       setVerificado(user?.emailVerified ?? false);
+
+      setGoogleVinculado(
+        user?.providerData.some(
+          (proveedor) => proveedor.providerId === 'google.com'
+        ) ?? false
+      );
     });
 
     return () => cancelar();
   }, []);
 
-  // Verificar automáticamente el correo electrónico
+  // Verificación automática de correo
   useEffect(() => {
     if (!usuario || verificado) return;
 
@@ -66,7 +132,8 @@ export default function Perfil() {
       consultando = true;
 
       try {
-        const confirmado = await comprobarVerificacionCorreo();
+        const confirmado =
+          await comprobarVerificacionCorreo();
 
         if (
           !activo ||
@@ -86,30 +153,26 @@ export default function Perfil() {
           }
 
           setVerificado(true);
+          setError('');
 
           setAviso(
             '¡Tu correo ha sido verificado correctamente! ' +
             'Ya puedes utilizar ListSmart.'
           );
-
-          setError('');
         }
       } catch {
-        // Reintentar si falla la conexión.
+        // Reintentar automáticamente.
       } finally {
         consultando = false;
       }
     }
 
-    // Comprobar al entrar
     void verificarAutomaticamente();
 
-    // Comprobar cada 10 segundos
     const intervalo = window.setInterval(() => {
       void verificarAutomaticamente();
     }, 10000);
 
-    // Comprobar al regresar a la aplicación
     function alRegresar() {
       void verificarAutomaticamente();
     }
@@ -124,7 +187,6 @@ export default function Perfil() {
 
     return () => {
       activo = false;
-
       window.clearInterval(intervalo);
 
       window.removeEventListener('focus', alRegresar);
@@ -137,39 +199,7 @@ export default function Perfil() {
     };
   }, [usuario, verificado]);
 
-  // Mostrar errores de Firebase
-  function mensajeError(codigo) {
-    switch (codigo) {
-      case 'auth/email-already-in-use':
-        return 'Este correo ya está registrado.';
-
-      case 'auth/invalid-email':
-        return 'El correo electrónico no es válido.';
-
-      case 'auth/weak-password':
-        return 'La contraseña es demasiado débil.';
-
-      case 'auth/invalid-credential':
-        return 'Correo o contraseña incorrectos.';
-
-      case 'auth/user-disabled':
-        return 'Esta cuenta ha sido deshabilitada.';
-
-      case 'auth/too-many-requests':
-        return 'Demasiados intentos. Intenta más tarde.';
-
-      case 'auth/network-request-failed':
-        return 'No hay conexión con Firebase.';
-
-      case 'auth/operation-not-allowed':
-        return 'Este método de acceso no está habilitado.';
-
-      default:
-        return 'Ocurrió un error. Intenta nuevamente.';
-    }
-  }
-
-  // Registro e inicio de sesión
+  // Registro e inicio de sesión tradicional
   async function enviarFormulario(e) {
     e.preventDefault();
 
@@ -190,7 +220,7 @@ export default function Perfil() {
         setContrasena('');
         setMostrarContrasena(false);
 
-        // Enviar verificación al crear una cuenta
+        // Enviar verificación al crear la cuenta
         try {
           await enviarVerificacionCorreo();
 
@@ -230,15 +260,91 @@ export default function Perfil() {
       }
 
     } catch (errorFirebase) {
+      setError(mensajeError(errorFirebase.code));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  // NUEVO: iniciar sesión con Google
+  async function accederConGoogle() {
+    setCargando(true);
+    setError('');
+    setAviso('');
+
+    try {
+      const cuenta = await iniciarSesionGoogle();
+
+      setVerificado(cuenta.emailVerified);
+
+      setGoogleVinculado(
+        cuenta.providerData.some(
+          (proveedor) => proveedor.providerId === 'google.com'
+        )
+      );
+
+      setCorreo('');
+      setContrasena('');
+      setMostrarContrasena(false);
+
+      setAviso(
+        '¡Has iniciado sesión correctamente con Google!'
+      );
+
+    } catch (errorFirebase) {
+      setError(mensajeError(errorFirebase.code));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  // NUEVO: vincular Google a una cuenta existente
+  async function vincularGoogle() {
+    if (!usuario || !verificado) return;
+
+    const uidOriginal = usuario.uid;
+
+    setCargando(true);
+    setError('');
+    setAviso('');
+
+    try {
+      const resultado = await vincularCuentaGoogle();
+
+      // Asegurarse de conservar el UID
+      if (auth.currentUser?.uid !== uidOriginal) {
+        throw new Error(
+          'La sesión cambió durante la vinculación.'
+        );
+      }
+
+      setGoogleVinculado(true);
+
+      if (resultado.yaVinculada) {
+        setAviso(
+          'Google ya estaba vinculado a tu cuenta.'
+        );
+      } else {
+        setAviso(
+          '¡Google se vinculó correctamente! ' +
+          'Tu cuenta y tus datos de ListSmart ' +
+          'conservan el mismo UID.'
+        );
+      }
+
+    } catch (errorFirebase) {
       setError(
-        mensajeError(errorFirebase.code)
+        errorFirebase.code
+          ? mensajeError(errorFirebase.code)
+          : errorFirebase.message ||
+            'No se pudo vincular Google.'
       );
     } finally {
       setCargando(false);
     }
   }
 
-  // Enviar o reenviar correo de verificación
+  // Enviar o reenviar verificación
   async function enviarCorreo() {
     setCargando(true);
     setError('');
@@ -249,6 +355,7 @@ export default function Perfil() {
         await enviarVerificacionCorreo();
 
       if (yaVerificado) {
+        await auth.currentUser?.getIdToken(true);
         setVerificado(true);
 
         setAviso(
@@ -261,9 +368,7 @@ export default function Perfil() {
         );
       }
     } catch (errorFirebase) {
-      setError(
-        mensajeError(errorFirebase.code)
-      );
+      setError(mensajeError(errorFirebase.code));
     } finally {
       setCargando(false);
     }
@@ -280,14 +385,13 @@ export default function Perfil() {
 
       setContrasena('');
       setMostrarContrasena(false);
+      setGoogleVinculado(false);
 
       setAviso(
         'Sesión cerrada correctamente.'
       );
     } catch (errorFirebase) {
-      setError(
-        mensajeError(errorFirebase.code)
-      );
+      setError(mensajeError(errorFirebase.code));
     } finally {
       setCargando(false);
     }
@@ -360,6 +464,7 @@ export default function Perfil() {
 
       {usuario === undefined ? (
 
+        /* Comprobando sesión */
         <div className="card border-0 shadow-sm rounded-4">
           <div className="card-body p-4">
 
@@ -375,13 +480,12 @@ export default function Perfil() {
               </span>
 
             </div>
-
           </div>
         </div>
 
       ) : usuario ? (
 
-        /* Perfil con sesión iniciada */
+        /* PERFIL CON SESIÓN INICIADA */
         <div className="card border-0 shadow-sm rounded-4">
           <div className="card-body p-4 p-md-5">
 
@@ -423,7 +527,6 @@ export default function Perfil() {
                 )}
 
               </div>
-
             </div>
 
             <hr className="my-4" />
@@ -441,15 +544,12 @@ export default function Perfil() {
 
                 <i
                   className="bi bi-envelope-check fs-4"
-                  style={{
-                    color: '#168af0'
-                  }}
+                  style={{ color: '#168af0' }}
                 ></i>
 
                 <h3 className="h5 fw-bold mb-0">
                   Verificación de correo
                 </h3>
-
               </div>
 
               {verificado ? (
@@ -469,7 +569,6 @@ export default function Perfil() {
               ) : (
 
                 <>
-
                   <div className="d-flex align-items-start gap-2 mb-3">
 
                     <i className="bi bi-shield-lock text-warning fs-4"></i>
@@ -480,16 +579,13 @@ export default function Perfil() {
                       </p>
 
                       <p className="text-secondary small mb-0">
-                        Hemos enviado un enlace de verificación
-                        a tu correo electrónico.
-                        Debes abrirlo para completar la
-                        verificación de tu cuenta.
+                        Debes abrir el enlace recibido
+                        en tu correo para completar
+                        la verificación de tu cuenta.
                       </p>
                     </div>
-
                   </div>
 
-                  {/* Comprobación automática */}
                   <div className="d-flex align-items-center gap-2 mb-3">
 
                     <span
@@ -500,7 +596,6 @@ export default function Perfil() {
                     <span className="small text-secondary">
                       Esperando verificación automáticamente...
                     </span>
-
                   </div>
 
                   <button
@@ -517,11 +612,79 @@ export default function Perfil() {
                     No necesitas actualizar la página.
                     ListSmart comprobará automáticamente
                     cuando hayas verificado tu correo.
-                    Si no encuentras el mensaje,
-                    revisa también tu carpeta de spam.
+                    Revisa también la carpeta de spam.
+                  </p>
+                </>
+
+              )}
+
+            </div>
+
+            {/* NUEVO: cuenta de Google */}
+            <div
+              className="rounded-3 p-3 p-md-4 mt-4"
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #e6ecf2'
+              }}
+            >
+
+              <div className="d-flex align-items-center gap-2 mb-3">
+
+                <i
+                  className="bi bi-google fs-4"
+                  style={{ color: '#4285F4' }}
+                ></i>
+
+                <h3 className="h5 fw-bold mb-0">
+                  Cuenta de Google
+                </h3>
+
+              </div>
+
+              {googleVinculado ? (
+
+                <>
+                  <p className="text-success fw-semibold mb-2">
+                    <i className="bi bi-check-circle-fill me-2"></i>
+                    Google vinculado correctamente
                   </p>
 
+                  <p className="text-secondary small mb-0">
+                    Puedes iniciar sesión en ListSmart
+                    con Google utilizando esta misma cuenta.
+                  </p>
                 </>
+
+              ) : verificado ? (
+
+                <>
+                  <p className="text-secondary small mb-3">
+                    Vincula Google a tu cuenta actual
+                    para poder iniciar sesión sin escribir
+                    tu contraseña. Tus listas y fotografías
+                    conservarán el mismo UID.
+                  </p>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary"
+                    onClick={vincularGoogle}
+                    disabled={cargando}
+                  >
+                    <i className="bi bi-google me-2"></i>
+                    {cargando
+                      ? 'Procesando...'
+                      : 'Vincular mi cuenta con Google'}
+                  </button>
+                </>
+
+              ) : (
+
+                <p className="text-secondary small mb-0">
+                  Primero verifica tu correo electrónico
+                  para habilitar la vinculación con Google.
+                </p>
 
               )}
 
@@ -548,7 +711,7 @@ export default function Perfil() {
 
                 </div>
 
-                <div className="p-3">
+                <div className="p-3 border-bottom">
 
                   <span className="small text-secondary d-block mb-1">
                     Estado de verificación
@@ -568,8 +731,27 @@ export default function Perfil() {
 
                 </div>
 
-              </div>
+                <div className="p-3">
 
+                  <span className="small text-secondary d-block mb-1">
+                    Acceso con Google
+                  </span>
+
+                  <span
+                    className={
+                      googleVinculado
+                        ? 'fw-medium text-success'
+                        : 'fw-medium text-secondary'
+                    }
+                  >
+                    {googleVinculado
+                      ? 'Vinculado'
+                      : 'No vinculado'}
+                  </span>
+
+                </div>
+
+              </div>
             </div>
 
             {/* Cerrar sesión */}
@@ -595,10 +777,10 @@ export default function Perfil() {
 
       ) : (
 
-        /* Inicio de sesión y registro */
+        /* INICIO DE SESIÓN Y REGISTRO */
         <div className="row g-4">
 
-          {/* Panel de presentación */}
+          {/* Presentación de ListSmart */}
           <div className="col-lg-5">
 
             <div
@@ -680,14 +862,12 @@ export default function Perfil() {
               </div>
 
             </div>
-
           </div>
 
           {/* Formulario */}
           <div className="col-lg-7">
 
             <div className="card border-0 shadow-sm rounded-4 h-100">
-
               <div className="card-body p-4 p-md-5">
 
                 <div className="text-center mb-4">
@@ -752,7 +932,7 @@ export default function Perfil() {
                     </div>
                   </div>
 
-                  {/* Contraseña con botón para mostrar u ocultar */}
+                  {/* Contraseña con ojito */}
                   <div className="mb-4">
 
                     <label
@@ -786,13 +966,10 @@ export default function Perfil() {
                             ? 'new-password'
                             : 'current-password'
                         }
-                        minLength={
-                          registro ? 6 : undefined
-                        }
+                        minLength={registro ? 6 : undefined}
                         required
                       />
 
-                      {/* Botón del ojito */}
                       <button
                         type="button"
                         className="btn btn-outline-secondary"
@@ -835,7 +1012,7 @@ export default function Perfil() {
 
                   </div>
 
-                  {/* Iniciar sesión o crear cuenta */}
+                  {/* Acceso mediante contraseña */}
                   <button
                     type="submit"
                     className="btn btn-primary w-100 py-2 fw-semibold"
@@ -857,6 +1034,33 @@ export default function Perfil() {
                   </button>
 
                 </form>
+
+                {/* NUEVO: acceso mediante Google */}
+                <div className="d-flex align-items-center gap-3 my-4">
+
+                  <div className="border-top flex-grow-1"></div>
+
+                  <span className="small text-secondary text-nowrap">
+                    O continuar con
+                  </span>
+
+                  <div className="border-top flex-grow-1"></div>
+
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary w-100 py-2 fw-semibold"
+                  onClick={accederConGoogle}
+                  disabled={cargando}
+                >
+                  <i
+                    className="bi bi-google me-2"
+                    style={{ color: '#4285F4' }}
+                  ></i>
+
+                  Continuar con Google
+                </button>
 
                 {/* Cambiar entre registro y acceso */}
                 <div className="text-center mt-4 pt-3 border-top">
