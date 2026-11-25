@@ -8,7 +8,8 @@ import {
   obtenerFotosListas,
   obtenerFotosEliminadas,
   marcarFotoEliminada,
-  confirmarEliminacionFoto
+  confirmarEliminacionFoto,
+  guardarFotoDescargada
 } from '../services/fotosListasDB';
 
 import { obtenerFotosNube } from '../services/fotosNube';
@@ -52,17 +53,18 @@ export default function FotosListas() {
   const [eliminando, setEliminando] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
+  const [descargando, setDescargando] = useState(null);
   const [mensaje, setMensaje] = useState('');
 
   const versionSesion = useRef(0);
   const versionCarga = useRef(0);
   const sincronizacionActual = useRef(null);
+  const descargaActual = useRef(null);
 
-  // Evitar que aparezcan fotografías eliminadas
-  // mientras existen consultas a Firebase en curso
+  // Fotografías ocultas durante esta sesión
   const ocultasSesion = useRef(new Set());
 
-  // Comprobar que la cuenta no haya cambiado
+  // Verificar que la cuenta no haya cambiado
   const sesionValida = useCallback((uidActual, version) => {
     return (
       versionSesion.current === version &&
@@ -107,7 +109,7 @@ export default function FotosListas() {
         return;
       }
 
-      // Consultar datos actuales de Firestore
+      // Obtener fotografías actuales de Firestore
       const remotas = await obtenerFotosNube(uidActual);
 
       if (
@@ -123,9 +125,8 @@ export default function FotosListas() {
 
       const actuales = await obtenerFotosListas(uidActual);
 
-      // Una foto previamente sincronizada que ya
-      // no existe en Firestore fue eliminada
-      // desde otro dispositivo.
+      // Detectar fotografías eliminadas
+      // desde otro dispositivo
       for (const foto of actuales) {
         if (
           !sesionValida(uidActual, version) ||
@@ -149,8 +150,6 @@ export default function FotosListas() {
         }
       }
 
-      // Volver a leer IndexedDB para respetar
-      // eliminaciones realizadas durante la consulta
       const localesFinales = await obtenerFotosListas(uidActual);
       const eliminadasFinales =
         await obtenerFotosEliminadas(uidActual);
@@ -172,7 +171,7 @@ export default function FotosListas() {
     [sesionValida]
   );
 
-  // Sincronizar con Cloudinary y Firestore
+  // Sincronizar fotografías con Cloudinary y Firestore
   const intentarSincronizar = useCallback(
     async (uidActual, version) => {
       if (!sesionValida(uidActual, version)) {
@@ -277,7 +276,7 @@ export default function FotosListas() {
     [cargarFotos, sesionValida]
   );
 
-  // Detectar cuenta activa
+  // Detectar la cuenta activa
   useEffect(() => {
     const referenciaSesion = versionSesion;
 
@@ -287,6 +286,7 @@ export default function FotosListas() {
 
       versionCarga.current++;
       ocultasSesion.current = new Set();
+      descargaActual.current = null;
 
       setUid(uidActual);
       setFotos([]);
@@ -295,6 +295,7 @@ export default function FotosListas() {
       setGuardando(false);
       setEliminando(null);
       setSincronizando(false);
+      setDescargando(null);
 
       if (!usuario) {
         setCargando(false);
@@ -332,7 +333,7 @@ export default function FotosListas() {
     };
   }, [cargarFotos, intentarSincronizar, sesionValida]);
 
-  // Reintentar al recuperar Internet
+  // Reintentar sincronización cuando vuelva Internet
   useEffect(() => {
     function alRecuperarConexion() {
       if (uid && auth.currentUser?.uid === uid) {
@@ -353,7 +354,7 @@ export default function FotosListas() {
     };
   }, [uid, intentarSincronizar]);
 
-  // Liberar URL temporal
+  // Liberar URL temporal de una imagen local
   useEffect(() => {
     return () => {
       if (vista?.temporal) {
@@ -362,7 +363,141 @@ export default function FotosListas() {
     };
   }, [vista]);
 
-  // Mostrar una fotografía
+  // NUEVO: descargar una imagen remota
+  // y conservarla en IndexedDB
+  async function guardarCopiaOffline(foto) {
+    if (
+      foto.imagen instanceof Blob ||
+      !foto.urlImagen ||
+      !uid
+    ) {
+      return;
+    }
+
+    const uidActual = uid;
+    const version = versionSesion.current;
+
+    if (!sesionValida(uidActual, version)) {
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setMensaje(
+        'Esta fotografía todavía no está disponible sin conexión.'
+      );
+      return;
+    }
+
+    // Evitar descargas simultáneas
+    if (descargaActual.current) {
+      return;
+    }
+
+    if (
+      !foto.urlImagen.startsWith(
+        'https://res.cloudinary.com/'
+      )
+    ) {
+      setMensaje(
+        'La fotografía no tiene una URL válida de Cloudinary.'
+      );
+      return;
+    }
+
+    const tarea = {
+      id: foto.id,
+      uid: uidActual,
+      version
+    };
+
+    descargaActual.current = tarea;
+    setDescargando(foto.id);
+
+    try {
+      const respuesta = await fetch(foto.urlImagen, {
+        method: 'GET',
+        redirect: 'error'
+      });
+
+      if (!respuesta.ok) {
+        throw new Error(
+          'No se pudo descargar la fotografía.'
+        );
+      }
+
+      // Comprobar el tamaño cuando el servidor lo indique
+      const tamano = Number(
+        respuesta.headers.get('content-length')
+      );
+
+      if (tamano > 10 * 1024 * 1024) {
+        throw new Error(
+          'La fotografía supera el límite de 10 MB.'
+        );
+      }
+
+      const imagen = await respuesta.blob();
+
+      if (!sesionValida(uidActual, version)) {
+        return;
+      }
+
+      // Guardar el archivo usando la función de IndexedDB
+      const registro = await guardarFotoDescargada(
+        uidActual,
+        foto,
+        imagen
+      );
+
+      if (!sesionValida(uidActual, version)) {
+        return;
+      }
+
+      // No restaurar una fotografía eliminada
+      if (
+        registro.eliminada === true ||
+        ocultasSesion.current.has(foto.id)
+      ) {
+        return;
+      }
+
+      // Actualizar el listado sin crear duplicados
+      setFotos((anteriores) =>
+        anteriores.map((item) =>
+          item.id === foto.id
+            ? {
+                ...item,
+                imagen: registro.imagen,
+                sincronizado: true
+              }
+            : item
+        )
+      );
+
+      setMensaje(
+        'Fotografía guardada para consultarla sin conexión.'
+      );
+
+    } catch (error) {
+      if (sesionValida(uidActual, version)) {
+        setMensaje(
+          'La fotografía puede seguir viéndose online, ' +
+          'pero no se pudo guardar offline. ' +
+          (error?.message || 'Revisa tu conexión.')
+        );
+      }
+    } finally {
+      if (descargaActual.current === tarea) {
+        descargaActual.current = null;
+
+        if (sesionValida(uidActual, version)) {
+          setDescargando(null);
+        }
+      }
+    }
+  }
+
+  // Mostrar fotografía local o remota
   function mostrarFoto(foto) {
     if (foto.imagen instanceof Blob) {
       setVista({
@@ -375,19 +510,32 @@ export default function FotosListas() {
     }
 
     if (foto.urlImagen) {
+      if (!navigator.onLine) {
+        setMensaje(
+          'Esta fotografía necesita Internet porque aún ' +
+          'no se ha descargado en este dispositivo.'
+        );
+        return;
+      }
+
       setVista({
         id: foto.id,
         url: foto.urlImagen,
         nombre: foto.nombre,
         temporal: false
       });
+
+      // Guardar una copia offline al verla
+      void guardarCopiaOffline(foto);
       return;
     }
 
-    setMensaje('No se encontró la imagen de esta fotografía.');
+    setMensaje(
+      'No se encontró la imagen de esta fotografía.'
+    );
   }
 
-  // Guardar nueva fotografía
+  // Guardar una fotografía nueva
   async function seleccionarFoto(e) {
     const input = e.target;
     const archivo = input.files?.[0];
@@ -401,7 +549,9 @@ export default function FotosListas() {
     ];
 
     if (!permitidos.includes(archivo.type)) {
-      setMensaje('Selecciona una imagen JPG, PNG o WebP.');
+      setMensaje(
+        'Selecciona una imagen JPG, PNG o WebP.'
+      );
       input.value = '';
       return;
     }
@@ -423,11 +573,15 @@ export default function FotosListas() {
         uidActual
       );
 
-      if (!sesionValida(uidActual, version)) return;
+      if (!sesionValida(uidActual, version)) {
+        return;
+      }
 
       await cargarFotos(uidActual, version, false);
 
-      if (!sesionValida(uidActual, version)) return;
+      if (!sesionValida(uidActual, version)) {
+        return;
+      }
 
       mostrarFoto(foto);
 
@@ -437,10 +591,12 @@ export default function FotosListas() {
       );
 
       void intentarSincronizar(uidActual, version);
+
     } catch (error) {
       if (sesionValida(uidActual, version)) {
         setMensaje(
-          error.message || 'No se pudo guardar la fotografía.'
+          error.message ||
+          'No se pudo guardar la fotografía.'
         );
       }
     } finally {
@@ -465,7 +621,9 @@ export default function FotosListas() {
     const uidActual = uid;
     const version = versionSesion.current;
 
-    if (!sesionValida(uidActual, version)) return;
+    if (!sesionValida(uidActual, version)) {
+      return;
+    }
 
     setEliminando(foto.id);
     setMensaje('');
@@ -474,19 +632,18 @@ export default function FotosListas() {
     versionCarga.current++;
 
     try {
-      // Guardar eliminación en IndexedDB
       await marcarFotoEliminada(uidActual, foto);
 
-      if (!sesionValida(uidActual, version)) return;
+      if (!sesionValida(uidActual, version)) {
+        return;
+      }
 
-      // Evitar que vuelva a mostrarse
       ocultasSesion.current.add(foto.id);
 
       setFotos((anteriores) =>
         anteriores.filter((item) => item.id !== foto.id)
       );
 
-      // Cerrar vista previa si corresponde
       setVista((anterior) =>
         anterior?.id === foto.id ? null : anterior
       );
@@ -496,7 +653,6 @@ export default function FotosListas() {
         'Se intentará sincronizar la eliminación.'
       );
 
-      // Enviar eliminación a Firestore
       void intentarSincronizar(uidActual, version);
 
     } catch (error) {
@@ -632,7 +788,7 @@ export default function FotosListas() {
             </div>
           )}
 
-          {/* Fotografías de la cuenta */}
+          {/* Fotografías guardadas */}
           <h3 className="h6">
             Mis fotografías guardadas
           </h3>
@@ -656,11 +812,15 @@ export default function FotosListas() {
                     </span>
 
                     <span className="text-body-secondary small">
-                      {foto.sincronizado === true
-                        ? 'En la nube'
-                        : foto.urlImagen
-                          ? 'Pendiente en Firebase'
-                          : 'Pendiente de subir'}
+                      {descargando === foto.id
+                        ? 'Guardando copia offline...'
+                        : foto.sincronizado === true
+                          ? foto.imagen instanceof Blob
+                            ? 'En la nube · Disponible offline'
+                            : 'En la nube · Solo online'
+                          : foto.urlImagen
+                            ? 'Pendiente en Firebase'
+                            : 'Pendiente de subir'}
                     </span>
                   </div>
 
@@ -687,6 +847,7 @@ export default function FotosListas() {
                       aria-label={`Eliminar ${foto.nombre}`}
                     >
                       <i className="bi bi-trash me-1"></i>
+
                       {eliminando === foto.id
                         ? 'Eliminando...'
                         : 'Eliminar'}
