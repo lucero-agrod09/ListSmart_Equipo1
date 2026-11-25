@@ -3,25 +3,41 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- Configuración responsiva -->
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
 
+    <!-- Descripción de ListSmart -->
     <meta
       name="description"
-      content="ListSmart: organiza tus compras, listas y pendientes."
+      content="ListSmart: organiza tus listas de compras, productos y pendientes de manera fácil y rápida."
     />
 
+    <!-- Color principal de ListSmart -->
     <meta name="theme-color" content="#168af0" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Iconos de ListSmart -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
 
-    <title>ListSmart | Bloc de Notas</title>
+    <link
+      rel="icon"
+      href="/logo.svg"
+      sizes="any"
+      type="image/svg+xml"
+    />
 
+    <link
+      rel="apple-touch-icon"
+      href="/apple-touch-icon-180x180.png"
+    />
+
+    <title>ListSmart | Mi Lista</title>
+
+    <!-- Estilos del Pre-shell -->
     <style>
-      /* PRE-SHELL: visible antes de que cargue React */
-
       body {
         margin: 0;
         font-family: system-ui, Arial, sans-serif;
@@ -84,11 +100,14 @@
   </head>
 
   <body>
+    <!-- Aquí se montará la aplicación React -->
     <div id="root">
-      <!-- React sustituye este Pre-shell al iniciar -->
 
+      <!-- PRE-SHELL DE LISTSMART -->
       <div class="pre">
-        <header>✓ ListSmart</header>
+        <header>
+          ✓ ListSmart
+        </header>
 
         <main>
           <div class="cargando" role="status">
@@ -99,12 +118,14 @@
 
         <nav aria-hidden="true"></nav>
       </div>
+
     </div>
 
     <noscript>
       ListSmart necesita JavaScript para funcionar.
     </noscript>
 
+    <!-- IMPORTANTE: inicia React -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
