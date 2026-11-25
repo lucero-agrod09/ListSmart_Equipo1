@@ -110,3 +110,129 @@ export async function obtenerFotosListas(uid) {
     };
   });
 }
+
+
+/*
+ * Sincronización de fotografías
+ * Cloudinary + Cloud Firestore
+ */
+
+// Obtener fotografías pendientes de sincronización
+export async function obtenerFotosPendientes(uid) {
+  const fotos = await obtenerFotosListas(uid);
+
+  return fotos.filter(
+    (foto) => foto.sincronizado !== true
+  );
+}
+
+// Actualizar una fotografía existente en IndexedDB
+function actualizarFotoLocal(uid, fotoId, modificar) {
+  return new Promise((resolve, reject) => {
+    if (!uid || !fotoId) {
+      reject(new Error('Falta identificar la fotografía.'));
+      return;
+    }
+
+    const solicitud = indexedDB.open('ListSmartListas', 2);
+
+    solicitud.onerror = () => {
+      reject(solicitud.error);
+    };
+
+    solicitud.onsuccess = () => {
+      const bd = solicitud.result;
+
+      if (!bd.objectStoreNames.contains('fotos')) {
+        bd.close();
+        reject(new Error('No existe el almacén de fotografías.'));
+        return;
+      }
+
+      const tx = bd.transaction('fotos', 'readwrite');
+      const almacen = tx.objectStore('fotos');
+      const lectura = almacen.get(fotoId);
+
+      let actualizada;
+      let errorPropio = null;
+
+      lectura.onsuccess = () => {
+        try {
+          const foto = lectura.result;
+
+          // No modificar fotografías de otra cuenta
+          if (!foto || foto.uid !== uid) {
+            throw new Error(
+              'La fotografía no pertenece a esta cuenta.'
+            );
+          }
+
+          actualizada = modificar(foto);
+
+          almacen.put(actualizada);
+        } catch (error) {
+          errorPropio = error;
+          tx.abort();
+        }
+      };
+
+      tx.oncomplete = () => {
+        bd.close();
+        resolve(actualizada);
+      };
+
+      tx.onabort = () => {
+        bd.close();
+        reject(
+          errorPropio ??
+          tx.error ??
+          new Error('No se pudo actualizar la fotografía.')
+        );
+      };
+    };
+  });
+}
+
+// Guardar el resultado obtenido de Cloudinary
+export function registrarFotoSubida(uid, fotoId, datos) {
+  if (
+    typeof datos?.url !== 'string' ||
+    !datos.url.startsWith('https://res.cloudinary.com/') ||
+    !datos.publicId
+  ) {
+    throw new Error(
+      'Cloudinary no devolvió una URL válida.'
+    );
+  }
+
+  return actualizarFotoLocal(uid, fotoId, (foto) => {
+    if (foto.sincronizado === true) {
+      return foto;
+    }
+
+    return {
+      ...foto,
+      urlImagen: datos.url,
+      publicId: datos.publicId,
+      estado: 'subida',
+      sincronizado: false
+    };
+  });
+}
+
+// Confirmar que Firestore ya guardó la URL
+export function confirmarFotoSincronizada(uid, fotoId) {
+  return actualizarFotoLocal(uid, fotoId, (foto) => {
+    if (!foto.urlImagen) {
+      throw new Error(
+        'Primero debe subirse la fotografía a Cloudinary.'
+      );
+    }
+
+    return {
+      ...foto,
+      estado: 'sincronizada',
+      sincronizado: true
+    };
+  });
+}
