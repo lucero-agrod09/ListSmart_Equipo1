@@ -2,19 +2,24 @@ import { auth } from '../config/firebase';
 
 import {
   obtenerFotosPendientes,
+  obtenerFotosEliminadas,
   registrarFotoSubida,
-  confirmarFotoSincronizada
+  confirmarFotoSincronizada,
+  confirmarEliminacionFoto
 } from './fotosListasDB';
 
 import { subirFotoCloudinary } from './cloudinary';
 
-import { guardarFotoNube } from './fotosNube';
+import {
+  guardarFotoNube,
+  eliminarFotoNube
+} from './fotosNube';
 
 // Evitar sincronizaciones simultáneas
-// de la misma cuenta en esta instancia.
+// de la misma cuenta en esta instancia
 const sincronizaciones = new Map();
 
-// Comprobar que la cuenta no haya cambiado
+// Comprobar que la sesión no haya cambiado
 function verificarCuenta(uid) {
   if (!uid || auth.currentUser?.uid !== uid) {
     throw new Error(
@@ -23,7 +28,7 @@ function verificarCuenta(uid) {
   }
 }
 
-// Procesar las fotografías pendientes
+// Procesar fotografías pendientes
 async function ejecutarSincronizacion(uid) {
   await auth.authStateReady();
 
@@ -36,83 +41,171 @@ async function ejecutarSincronizacion(uid) {
     );
   }
 
-  const fotos = await obtenerFotosPendientes(uid);
-
   let sincronizadas = 0;
+  let eliminadas = 0;
+
   const errores = [];
+
+  // -----------------------------------------
+  // 1. Subir fotografías pendientes
+  // -----------------------------------------
+
+  const fotos = await obtenerFotosPendientes(uid);
 
   for (const foto of fotos) {
     verificarCuenta(uid);
 
     try {
-      let fotoActual = foto;
+      // Revisar si la fotografía sigue pendiente.
+      // Pudo haber sido marcada para eliminar
+      // después de obtener la lista inicial.
+      const actuales = await obtenerFotosPendientes(uid);
 
-      // Subir solamente si todavía no existe
-      // una URL de Cloudinary guardada.
-      if (!foto.urlImagen || !foto.publicId) {
+      let fotoActual = actuales.find(
+        (item) => item.id === foto.id
+      );
 
-        if (!(foto.imagen instanceof Blob)) {
+      if (!fotoActual) {
+        continue;
+      }
+
+      // Subir a Cloudinary únicamente si
+      // todavía no tenemos su URL guardada.
+      if (!fotoActual.urlImagen || !fotoActual.publicId) {
+
+        if (!(fotoActual.imagen instanceof Blob)) {
           throw new Error(
             'No se encontró la imagen local.'
           );
         }
 
         const datos = await subirFotoCloudinary(
-          foto.imagen
+          fotoActual.imagen
         );
 
-        // Guardamos la URL inmediatamente.
-        // Así podemos reutilizarla si falla Firestore.
+        // Guardar inmediatamente la URL en IndexedDB,
+        // para reutilizarla si falla Firebase.
         fotoActual = await registrarFotoSubida(
           uid,
-          foto.id,
+          fotoActual.id,
           datos
         );
       }
 
       verificarCuenta(uid);
 
-      // Guardar los metadatos en Firestore
+      // Si se eliminó mientras se subía,
+      // no crear nuevamente su documento.
+      const eliminaciones = await obtenerFotosEliminadas(uid);
+
+      const fueEliminada = eliminaciones.some(
+        (item) => item.id === fotoActual.id
+      );
+
+      if (fueEliminada) {
+        continue;
+      }
+
+      // Registrar la URL en Firestore
       await guardarFotoNube(uid, fotoActual);
 
       verificarCuenta(uid);
 
-      // Firestore confirmó el guardado:
-      // retirar la fotografía de los pendientes.
+      // Confirmar que la fotografía está sincronizada
       await confirmarFotoSincronizada(
         uid,
-        foto.id
+        fotoActual.id
       );
 
       sincronizadas++;
 
     } catch (error) {
 
-      // Si cambió la sesión, detener todo.
-        if (auth.currentUser?.uid !== uid) {
+      if (auth.currentUser?.uid !== uid) {
         throw new Error(
-            'La sesión cambió durante la sincronización.',
-            { cause: error }
+          'La sesión cambió durante la sincronización.',
+          { cause: error }
         );
-        }
+      }
 
-      // No perder la fotografía que falló.
       errores.push({
         fotoId: foto.id,
+        tipo: 'subida',
         mensaje:
           error?.message ||
-          'No se pudo sincronizar la fotografía.'
+          'No se pudo subir la fotografía.'
       });
     }
   }
 
+  // -----------------------------------------
+  // 2. Eliminar fotografías pendientes
+  // -----------------------------------------
+
+  // Se consultan después de las subidas para
+  // detectar eliminaciones realizadas mientras
+  // una fotografía se estaba sincronizando.
+
   verificarCuenta(uid);
 
-  const restantes = await obtenerFotosPendientes(uid);
+  const fotosEliminadas = await obtenerFotosEliminadas(uid);
+
+  for (const foto of fotosEliminadas) {
+    verificarCuenta(uid);
+
+    try {
+      // Eliminar el documento en Firestore
+      await eliminarFotoNube(uid, foto.id);
+
+      verificarCuenta(uid);
+
+      // Confirmar la eliminación en IndexedDB.
+      // Esto también libera el Blob local.
+      await confirmarEliminacionFoto(
+        uid,
+        foto.id
+      );
+
+      eliminadas++;
+
+    } catch (error) {
+
+      if (auth.currentUser?.uid !== uid) {
+        throw new Error(
+          'La sesión cambió durante la eliminación.',
+          { cause: error }
+        );
+      }
+
+      // Conservar la eliminación pendiente
+      // para volver a intentarla después.
+      errores.push({
+        fotoId: foto.id,
+        tipo: 'eliminacion',
+        mensaje:
+          error?.message ||
+          'No se pudo eliminar la fotografía.'
+      });
+    }
+  }
+
+  // -----------------------------------------
+  // 3. Consultar operaciones pendientes
+  // -----------------------------------------
+
+  verificarCuenta(uid);
+
+  const subidasRestantes = await obtenerFotosPendientes(uid);
+  const eliminacionesRestantes = await obtenerFotosEliminadas(uid);
 
   return {
     sincronizadas,
-    pendientes: restantes.length,
+    eliminadas,
+    pendientes:
+      subidasRestantes.length +
+      eliminacionesRestantes.length,
+    subidasPendientes: subidasRestantes.length,
+    eliminacionesPendientes: eliminacionesRestantes.length,
     errores
   };
 }
@@ -120,7 +213,7 @@ async function ejecutarSincronizacion(uid) {
 // Función principal de sincronización
 export function sincronizarFotos(uid) {
 
-  // Reutilizar la tarea si ya está en ejecución
+  // Reutilizar una sincronización que ya esté en curso
   if (sincronizaciones.has(uid)) {
     return sincronizaciones.get(uid);
   }

@@ -3,7 +3,8 @@ import {
   collection,
   doc,
   getDocsFromServer,
-  setDoc
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 
 import { app, auth } from '../config/firebase';
@@ -64,4 +65,28 @@ export async function obtenerFotosNube(uid) {
     ...documento.data(),
     id: documento.id
   }));
+}
+
+// Eliminar el registro de una fotografía en Firestore
+export async function eliminarFotoNube(uid, fotoId) {
+  verificarCuenta(uid);
+
+  if (
+    typeof fotoId !== 'string' ||
+    !fotoId.trim()
+  ) {
+    throw new Error(
+      'No se encontró un identificador válido para la fotografía.'
+    );
+  }
+
+  const referencia = doc(
+    db,
+    'usuarios',
+    uid,
+    'fotos',
+    fotoId
+  );
+
+  await deleteDoc(referencia);
 }
