@@ -29,7 +29,9 @@ function abrirBD() {
 // Guardar fotografía asociada a una cuenta
 export async function guardarFotoLista(archivo, uid) {
   if (!uid) {
-    throw new Error('Debes iniciar sesión para guardar fotografías.');
+    throw new Error(
+      'Debes iniciar sesión para guardar fotografías.'
+    );
   }
 
   if (!archivo?.type?.startsWith('image/')) {
@@ -37,16 +39,22 @@ export async function guardarFotoLista(archivo, uid) {
   }
 
   if (archivo.size > 10 * 1024 * 1024) {
-    throw new Error('La imagen no debe superar los 10 MB.');
+    throw new Error(
+      'La imagen no debe superar los 10 MB.'
+    );
   }
 
   const foto = {
     id: crypto.randomUUID(),
     uid,
     nombre: archivo.name,
-    imagen: new Blob([archivo], { type: archivo.type }),
+    imagen: new Blob([archivo], {
+      type: archivo.type
+    }),
     fechaGuardado: new Date().toISOString(),
     sincronizado: false,
+    eliminada: false,
+    eliminacionConfirmada: false
   };
 
   const bd = await abrirBD();
@@ -73,8 +81,9 @@ export async function guardarFotoLista(archivo, uid) {
   });
 }
 
-// Obtener fotografías de la cuenta activa
-export async function obtenerFotosListas(uid) {
+// Obtener todos los registros de una cuenta,
+// incluyendo eliminaciones pendientes
+async function obtenerTodosLosRegistros(uid) {
   if (!uid) {
     throw new Error('Debes iniciar sesión.');
   }
@@ -92,8 +101,11 @@ export async function obtenerFotosListas(uid) {
     tx.oncomplete = () => {
       bd.close();
 
-      const fotos = solicitud.result.sort((a, b) =>
-        b.fechaGuardado.localeCompare(a.fechaGuardado)
+      const fotos = (solicitud.result ?? []).sort(
+        (a, b) =>
+          String(b.fechaGuardado ?? '').localeCompare(
+            String(a.fechaGuardado ?? '')
+          )
       );
 
       resolve(fotos);
@@ -111,13 +123,16 @@ export async function obtenerFotosListas(uid) {
   });
 }
 
+// Obtener solamente fotografías visibles
+export async function obtenerFotosListas(uid) {
+  const fotos = await obtenerTodosLosRegistros(uid);
 
-/*
- * Sincronización de fotografías
- * Cloudinary + Cloud Firestore
- */
+  return fotos.filter(
+    (foto) => foto.eliminada !== true
+  );
+}
 
-// Obtener fotografías pendientes de sincronización
+// Obtener fotografías pendientes de subida
 export async function obtenerFotosPendientes(uid) {
   const fotos = await obtenerFotosListas(uid);
 
@@ -126,78 +141,87 @@ export async function obtenerFotosPendientes(uid) {
   );
 }
 
-// Actualizar una fotografía existente en IndexedDB
-function actualizarFotoLocal(uid, fotoId, modificar) {
+// Obtener fotografías pendientes de eliminación
+export async function obtenerFotosEliminadas(uid) {
+  const fotos = await obtenerTodosLosRegistros(uid);
+
+  return fotos.filter(
+    (foto) =>
+      foto.eliminada === true &&
+      foto.eliminacionConfirmada !== true
+  );
+}
+
+// Actualizar un registro existente en IndexedDB.
+// También permite crear un registro para una fotografía
+// recuperada únicamente desde Firestore.
+async function actualizarFotoLocal(
+  uid,
+  fotoId,
+  modificar,
+  fotoSiNoExiste = null
+) {
+  if (!uid || !fotoId) {
+    throw new Error(
+      'Falta identificar la fotografía.'
+    );
+  }
+
+  const bd = await abrirBD();
+
   return new Promise((resolve, reject) => {
-    if (!uid || !fotoId) {
-      reject(new Error('Falta identificar la fotografía.'));
-      return;
-    }
+    const tx = bd.transaction(ALMACEN, 'readwrite');
+    const almacen = tx.objectStore(ALMACEN);
+    const lectura = almacen.get(fotoId);
 
-    const solicitud = indexedDB.open('ListSmartListas', 2);
+    let actualizada;
+    let errorPropio = null;
 
-    solicitud.onerror = () => {
-      reject(solicitud.error);
+    lectura.onsuccess = () => {
+      try {
+        const foto = lectura.result ?? fotoSiNoExiste;
+
+        if (!foto || foto.uid !== uid) {
+          throw new Error(
+            'La fotografía no pertenece a esta cuenta.'
+          );
+        }
+
+        actualizada = modificar(foto);
+
+        almacen.put(actualizada);
+      } catch (error) {
+        errorPropio = error;
+        tx.abort();
+      }
     };
 
-    solicitud.onsuccess = () => {
-      const bd = solicitud.result;
+    tx.oncomplete = () => {
+      bd.close();
+      resolve(actualizada);
+    };
 
-      if (!bd.objectStoreNames.contains('fotos')) {
-        bd.close();
-        reject(new Error('No existe el almacén de fotografías.'));
-        return;
-      }
+    tx.onabort = () => {
+      bd.close();
 
-      const tx = bd.transaction('fotos', 'readwrite');
-      const almacen = tx.objectStore('fotos');
-      const lectura = almacen.get(fotoId);
-
-      let actualizada;
-      let errorPropio = null;
-
-      lectura.onsuccess = () => {
-        try {
-          const foto = lectura.result;
-
-          // No modificar fotografías de otra cuenta
-          if (!foto || foto.uid !== uid) {
-            throw new Error(
-              'La fotografía no pertenece a esta cuenta.'
-            );
-          }
-
-          actualizada = modificar(foto);
-
-          almacen.put(actualizada);
-        } catch (error) {
-          errorPropio = error;
-          tx.abort();
-        }
-      };
-
-      tx.oncomplete = () => {
-        bd.close();
-        resolve(actualizada);
-      };
-
-      tx.onabort = () => {
-        bd.close();
-        reject(
-          errorPropio ??
-          tx.error ??
-          new Error('No se pudo actualizar la fotografía.')
-        );
-      };
+      reject(
+        errorPropio ??
+        tx.error ??
+        new Error(
+          'No se pudo actualizar la fotografía.'
+        )
+      );
     };
   });
 }
 
-// Guardar el resultado obtenido de Cloudinary
+// Guardar el resultado de Cloudinary
 export function registrarFotoSubida(uid, fotoId, datos) {
   if (
     typeof datos?.url !== 'string' ||
-    !datos.url.startsWith('https://res.cloudinary.com/') ||
+    !datos.url.startsWith(
+      'https://res.cloudinary.com/'
+    ) ||
     !datos.publicId
   ) {
     throw new Error(
@@ -220,7 +244,7 @@ export function registrarFotoSubida(uid, fotoId, datos) {
   });
 }
 
-// Confirmar que Firestore ya guardó la URL
+// Confirmar que Firestore guardó la URL
 export function confirmarFotoSincronizada(uid, fotoId) {
   return actualizarFotoLocal(uid, fotoId, (foto) => {
     if (!foto.urlImagen) {
@@ -233,6 +257,83 @@ export function confirmarFotoSincronizada(uid, fotoId) {
       ...foto,
       estado: 'sincronizada',
       sincronizado: true
+    };
+  });
+}
+
+// Marcar una fotografía para eliminarla
+export function marcarFotoEliminada(uid, foto) {
+  if (!uid || !foto?.id) {
+    throw new Error(
+      'No se pudo identificar la fotografía.'
+    );
+  }
+
+  // Evitar asociar a esta cuenta una fotografía
+  // que explícitamente pertenece a otra
+  if (foto.uid && foto.uid !== uid) {
+    throw new Error(
+      'La fotografía no pertenece a esta cuenta.'
+    );
+  }
+
+  // Datos mínimos por si la fotografía solo
+  // existe en la memoria de la interfaz
+  const registroRemoto = {
+    id: foto.id,
+    uid,
+    nombre: foto.nombre ?? 'Fotografía de lista',
+    fechaGuardado:
+      foto.fechaGuardado ??
+      new Date().toISOString(),
+    urlImagen: foto.urlImagen ?? null,
+    publicId: foto.publicId ?? null,
+    sincronizado: foto.sincronizado === true
+  };
+
+  return actualizarFotoLocal(
+    uid,
+    foto.id,
+    (actual) => {
+      if (actual.eliminada === true) {
+        return actual;
+      }
+
+      return {
+        ...actual,
+        eliminada: true,
+        eliminacionConfirmada: false,
+        fechaEliminacion: new Date().toISOString(),
+        estado: 'pendiente_eliminar'
+      };
+    },
+    registroRemoto
+  );
+}
+
+// Confirmar que Firestore eliminó la fotografía
+export function confirmarEliminacionFoto(uid, fotoId) {
+  return actualizarFotoLocal(uid, fotoId, (foto) => {
+    if (foto.eliminada !== true) {
+      throw new Error(
+        'La fotografía no está marcada para eliminar.'
+      );
+    }
+
+    // Conservar un registro pequeño de eliminación,
+    // pero liberar el Blob de la fotografía.
+    return {
+      id: foto.id,
+      uid: foto.uid,
+      nombre: foto.nombre,
+      fechaGuardado: foto.fechaGuardado,
+      urlImagen: foto.urlImagen ?? null,
+      publicId: foto.publicId ?? null,
+      fechaEliminacion: foto.fechaEliminacion,
+      eliminada: true,
+      eliminacionConfirmada: true,
+      sincronizado: true,
+      estado: 'eliminada'
     };
   });
 }
