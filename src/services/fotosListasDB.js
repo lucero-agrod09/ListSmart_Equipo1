@@ -337,3 +337,108 @@ export function confirmarEliminacionFoto(uid, fotoId) {
     };
   });
 }
+
+
+/*
+ * Guardar en IndexedDB una fotografía
+ * recuperada desde Cloudinary.
+ */
+export function guardarFotoDescargada(uid, fotoRemota, imagen) {
+  // Validar la cuenta y la fotografía
+  if (
+    !uid ||
+    typeof fotoRemota?.id !== 'string' ||
+    !fotoRemota.id
+  ) {
+    throw new Error(
+      'No se pudo identificar la fotografía.'
+    );
+  }
+
+  if (fotoRemota.uid && fotoRemota.uid !== uid) {
+    throw new Error(
+      'La fotografía pertenece a otra cuenta.'
+    );
+  }
+
+  // Comprobar que proviene de Cloudinary
+  if (
+    typeof fotoRemota.urlImagen !== 'string' ||
+    !fotoRemota.urlImagen.startsWith(
+      'https://res.cloudinary.com/'
+    )
+  ) {
+    throw new Error(
+      'La fotografía no tiene una URL válida.'
+    );
+  }
+
+  // Validar el archivo descargado
+  const formatosPermitidos = [
+    'image/jpeg',
+    'image/png',
+    'image/webp'
+  ];
+
+  if (
+    !(imagen instanceof Blob) ||
+    imagen.size === 0 ||
+    imagen.size > 10 * 1024 * 1024 ||
+    !formatosPermitidos.includes(imagen.type)
+  ) {
+    throw new Error(
+      'La imagen descargada no tiene un formato o tamaño válido.'
+    );
+  }
+
+  // Datos de una fotografía recuperada
+  // que todavía no existe en este dispositivo
+  const nuevaFoto = {
+    id: fotoRemota.id,
+    uid,
+    nombre: fotoRemota.nombre || 'Fotografía de lista',
+    imagen,
+    fechaGuardado:
+      fotoRemota.fechaGuardado ||
+      new Date().toISOString(),
+    urlImagen: fotoRemota.urlImagen,
+    publicId: fotoRemota.publicId ?? null,
+    sincronizado: true,
+    eliminada: false,
+    eliminacionConfirmada: false,
+    estado: 'sincronizada'
+  };
+
+  // Utilizar la función que ya tenemos
+  // para actualizar IndexedDB
+  return actualizarFotoLocal(
+    uid,
+    fotoRemota.id,
+    (actual) => {
+
+      // Nunca restaurar una fotografía eliminada
+      if (actual.eliminada === true) {
+        return actual;
+      }
+
+      // No duplicar una imagen que ya está
+      // guardada localmente
+      if (actual.imagen instanceof Blob) {
+        return actual;
+      }
+
+      // Agregar la imagen al registro existente
+      return {
+        ...actual,
+        imagen,
+        urlImagen:
+          actual.urlImagen || fotoRemota.urlImagen,
+        publicId:
+          actual.publicId || fotoRemota.publicId,
+        sincronizado: true,
+        estado: 'sincronizada'
+      };
+    },
+    nuevaFoto
+  );
+}
