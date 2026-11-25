@@ -1,5 +1,7 @@
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+
 import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
@@ -19,7 +21,171 @@ import {
   vincularCuentaGoogle
 } from '../services/accesoGoogle';
 
-// Traducir errores de Firebase
+// ==========================================
+// SKELETON DE INICIO DE SESIÓN
+// ==========================================
+
+function PerfilSkeleton() {
+  return (
+    <div
+      className="row g-4"
+      role="status"
+      aria-label="Preparando inicio de sesión"
+      aria-busy="true"
+    >
+      <span className="visually-hidden">
+        Preparando el inicio de sesión...
+      </span>
+
+      {/* Panel de presentación */}
+      <div className="col-lg-5">
+        <div
+          className="rounded-4 p-4 h-100"
+          style={{ backgroundColor: '#edf7ff' }}
+          aria-hidden="true"
+        >
+          <div className="placeholder-glow">
+
+            <span
+              className="placeholder rounded-3 mb-4"
+              style={{
+                width: '56px',
+                height: '56px'
+              }}
+            ></span>
+
+            <div className="mb-3">
+              <span className="placeholder col-9 rounded"></span>
+            </div>
+
+            <div className="mb-2">
+              <span className="placeholder col-12 rounded"></span>
+            </div>
+
+            <div className="mb-4">
+              <span className="placeholder col-8 rounded"></span>
+            </div>
+
+            {[1, 2, 3].map((item) => (
+              <div
+                className="d-flex gap-3 mb-4"
+                key={item}
+              >
+                <span
+                  className="placeholder rounded flex-shrink-0"
+                  style={{
+                    width: '25px',
+                    height: '25px'
+                  }}
+                ></span>
+
+                <div className="flex-grow-1">
+                  <span className="placeholder col-8 rounded d-block mb-2"></span>
+                  <span className="placeholder col-11 rounded d-block"></span>
+                </div>
+              </div>
+            ))}
+
+          </div>
+        </div>
+      </div>
+
+      {/* Esqueleto del formulario */}
+      <div className="col-lg-7">
+        <div className="card border-0 shadow-sm rounded-4 h-100">
+          <div className="card-body p-4 p-md-5">
+
+            <div className="placeholder-glow">
+
+              {/* Encabezado */}
+              <div className="text-center mb-4">
+
+                <span
+                  className="placeholder rounded-circle d-inline-block mb-3"
+                  style={{
+                    width: '60px',
+                    height: '60px'
+                  }}
+                ></span>
+
+                <div className="mb-2">
+                  <span className="placeholder col-6 rounded"></span>
+                </div>
+
+                <div>
+                  <span className="placeholder col-9 rounded"></span>
+                </div>
+
+              </div>
+
+              {/* Correo */}
+              <div className="mb-3">
+
+                <div className="mb-2">
+                  <span className="placeholder col-4 rounded"></span>
+                </div>
+
+                <span
+                  className="placeholder col-12 rounded-2"
+                  style={{ height: '42px' }}
+                ></span>
+
+              </div>
+
+              {/* Contraseña */}
+              <div className="mb-4">
+
+                <div className="mb-2">
+                  <span className="placeholder col-3 rounded"></span>
+                </div>
+
+                <span
+                  className="placeholder col-12 rounded-2"
+                  style={{ height: '42px' }}
+                ></span>
+
+              </div>
+
+              {/* Botón */}
+              <div className="mb-4">
+                <span
+                  className="placeholder col-12 rounded-2 bg-primary"
+                  style={{
+                    height: '42px',
+                    opacity: 0.35
+                  }}
+                ></span>
+              </div>
+
+              {/* Acceso con Google */}
+              <div className="text-center mb-3">
+                <span className="placeholder col-5 rounded"></span>
+              </div>
+
+              <span
+                className="placeholder col-12 rounded-2"
+                style={{ height: '42px' }}
+              ></span>
+
+              {/* Registro */}
+              <div className="text-center mt-4 pt-3 border-top">
+                <span className="placeholder col-7 rounded"></span>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+// ==========================================
+// MENSAJES DE ERROR
+// ==========================================
+
 function mensajeError(codigo) {
   switch (codigo) {
     case 'auth/email-already-in-use':
@@ -53,44 +219,52 @@ function mensajeError(codigo) {
       return 'Se canceló la solicitud de acceso con Google.';
 
     case 'auth/popup-blocked':
-      return 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes para ListSmart.';
+      return 'El navegador bloqueó la ventana de Google.';
 
     case 'auth/unauthorized-domain':
-      return 'El dominio de ListSmart no está autorizado en Firebase Authentication.';
+      return 'El dominio de ListSmart no está autorizado en Firebase.';
 
     case 'auth/account-exists-with-different-credential':
       return 'Ya existe una cuenta con ese correo. Inicia sesión con tu contraseña y después vincula Google desde Perfil.';
 
     case 'auth/credential-already-in-use':
-      return 'Esta cuenta de Google ya está vinculada a otra cuenta de Firebase. No se modificaron tus listas.';
+      return 'Esta cuenta de Google ya está vinculada a otra cuenta.';
 
     case 'auth/provider-already-linked':
       return 'Google ya está vinculado a esta cuenta.';
 
     case 'auth/requires-recent-login':
-      return 'Por seguridad, cierra sesión, vuelve a iniciarla e intenta nuevamente.';
+      return 'Cierra sesión, vuelve a iniciarla e intenta nuevamente.';
 
     default:
       return 'Ocurrió un error. Intenta nuevamente.';
   }
 }
 
+// ==========================================
+// PERFIL DE LISTSMART
+// ==========================================
+
 export default function Perfil() {
+  const navigate = useNavigate();
+
   const [usuario, setUsuario] = useState(undefined);
   const [registro, setRegistro] = useState(false);
 
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [mostrarContrasena, setMostrarContrasena] = useState(false);
+  const [mostrarContrasena, setMostrarContrasena] =
+    useState(false);
 
   const [verificado, setVerificado] = useState(false);
-  const [googleVinculado, setGoogleVinculado] = useState(false);
+  const [googleVinculado, setGoogleVinculado] =
+    useState(false);
 
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
 
-  // Detectar cambios en la sesión
+  // Detectar la sesión de Firebase
   useEffect(() => {
     const cancelar = onAuthStateChanged(auth, (user) => {
       setUsuario(user);
@@ -98,7 +272,8 @@ export default function Perfil() {
 
       setGoogleVinculado(
         user?.providerData.some(
-          (proveedor) => proveedor.providerId === 'google.com'
+          (proveedor) =>
+            proveedor.providerId === 'google.com'
         ) ?? false
       );
     });
@@ -106,7 +281,7 @@ export default function Perfil() {
     return () => cancelar();
   }, []);
 
-  // Verificación automática de correo
+  // Verificación automática del correo
   useEffect(() => {
     if (!usuario || verificado) return;
 
@@ -155,10 +330,7 @@ export default function Perfil() {
           setVerificado(true);
           setError('');
 
-          setAviso(
-            '¡Tu correo ha sido verificado correctamente! ' +
-            'Ya puedes utilizar ListSmart.'
-          );
+          navigate('/', { replace: true });
         }
       } catch {
         // Reintentar automáticamente.
@@ -197,9 +369,9 @@ export default function Perfil() {
         alRegresar
       );
     };
-  }, [usuario, verificado]);
+  }, [usuario, verificado, navigate]);
 
-  // Registro e inicio de sesión tradicional
+  // Registro e inicio de sesión
   async function enviarFormulario(e) {
     e.preventDefault();
 
@@ -220,7 +392,6 @@ export default function Perfil() {
         setContrasena('');
         setMostrarContrasena(false);
 
-        // Enviar verificación al crear la cuenta
         try {
           await enviarVerificacionCorreo();
 
@@ -248,15 +419,26 @@ export default function Perfil() {
         }
 
       } else {
-        await signInWithEmailAndPassword(
-          auth,
-          correo.trim(),
-          contrasena
-        );
+        const credenciales =
+          await signInWithEmailAndPassword(
+            auth,
+            correo.trim(),
+            contrasena
+          );
 
         setCorreo('');
         setContrasena('');
         setMostrarContrasena(false);
+
+        if (credenciales.user.emailVerified) {
+          await credenciales.user.getIdToken(true);
+          navigate('/', { replace: true });
+        } else {
+          setAviso(
+            'Debes verificar tu correo electrónico ' +
+            'para utilizar ListSmart.'
+          );
+        }
       }
 
     } catch (errorFirebase) {
@@ -266,7 +448,7 @@ export default function Perfil() {
     }
   }
 
-  // NUEVO: iniciar sesión con Google
+  // Iniciar sesión con Google
   async function accederConGoogle() {
     setCargando(true);
     setError('');
@@ -279,7 +461,8 @@ export default function Perfil() {
 
       setGoogleVinculado(
         cuenta.providerData.some(
-          (proveedor) => proveedor.providerId === 'google.com'
+          (proveedor) =>
+            proveedor.providerId === 'google.com'
         )
       );
 
@@ -287,9 +470,15 @@ export default function Perfil() {
       setContrasena('');
       setMostrarContrasena(false);
 
-      setAviso(
-        '¡Has iniciado sesión correctamente con Google!'
-      );
+      if (cuenta.emailVerified) {
+        await cuenta.getIdToken(true);
+        navigate('/', { replace: true });
+      } else {
+        setAviso(
+          'Iniciaste sesión con Google, pero tu correo ' +
+          'todavía necesita verificación.'
+        );
+      }
 
     } catch (errorFirebase) {
       setError(mensajeError(errorFirebase.code));
@@ -298,7 +487,7 @@ export default function Perfil() {
     }
   }
 
-  // NUEVO: vincular Google a una cuenta existente
+  // Vincular Google a una cuenta existente
   async function vincularGoogle() {
     if (!usuario || !verificado) return;
 
@@ -311,7 +500,6 @@ export default function Perfil() {
     try {
       const resultado = await vincularCuentaGoogle();
 
-      // Asegurarse de conservar el UID
       if (auth.currentUser?.uid !== uidOriginal) {
         throw new Error(
           'La sesión cambió durante la vinculación.'
@@ -327,8 +515,7 @@ export default function Perfil() {
       } else {
         setAviso(
           '¡Google se vinculó correctamente! ' +
-          'Tu cuenta y tus datos de ListSmart ' +
-          'conservan el mismo UID.'
+          'Tus datos conservan el mismo UID.'
         );
       }
 
@@ -344,7 +531,7 @@ export default function Perfil() {
     }
   }
 
-  // Enviar o reenviar verificación
+  // Reenviar correo de verificación
   async function enviarCorreo() {
     setCargando(true);
     setError('');
@@ -356,17 +543,17 @@ export default function Perfil() {
 
       if (yaVerificado) {
         await auth.currentUser?.getIdToken(true);
-        setVerificado(true);
 
-        setAviso(
-          'Tu correo electrónico ya está verificado.'
-        );
+        setVerificado(true);
+        navigate('/', { replace: true });
+
       } else {
         setAviso(
           'Enviamos el enlace de verificación. ' +
           'Revisa tu bandeja de entrada y spam.'
         );
       }
+
     } catch (errorFirebase) {
       setError(mensajeError(errorFirebase.code));
     } finally {
@@ -387,9 +574,8 @@ export default function Perfil() {
       setMostrarContrasena(false);
       setGoogleVinculado(false);
 
-      setAviso(
-        'Sesión cerrada correctamente.'
-      );
+      setAviso('Sesión cerrada correctamente.');
+
     } catch (errorFirebase) {
       setError(mensajeError(errorFirebase.code));
     } finally {
@@ -462,26 +648,12 @@ export default function Perfil() {
         </div>
       )}
 
-      {usuario === undefined ? (
+      {/* Mostrar skeleton mientras se comprueba
+          la sesión o se procesa el login */}
+      {usuario === undefined ||
+      (usuario === null && cargando) ? (
 
-        /* Comprobando sesión */
-        <div className="card border-0 shadow-sm rounded-4">
-          <div className="card-body p-4">
-
-            <div className="d-flex align-items-center gap-2">
-
-              <span
-                className="spinner-border spinner-border-sm text-primary"
-                aria-hidden="true"
-              ></span>
-
-              <span className="text-secondary">
-                Comprobando sesión...
-              </span>
-
-            </div>
-          </div>
-        </div>
+        <PerfilSkeleton />
 
       ) : usuario ? (
 
@@ -531,7 +703,7 @@ export default function Perfil() {
 
             <hr className="my-4" />
 
-            {/* Verificación de correo */}
+            {/* Verificación del correo */}
             <div
               className="rounded-3 p-3 p-md-4"
               style={{
@@ -541,7 +713,6 @@ export default function Perfil() {
             >
 
               <div className="d-flex align-items-center gap-2 mb-3">
-
                 <i
                   className="bi bi-envelope-check fs-4"
                   style={{ color: '#168af0' }}
@@ -584,10 +755,10 @@ export default function Perfil() {
                         la verificación de tu cuenta.
                       </p>
                     </div>
+
                   </div>
 
                   <div className="d-flex align-items-center gap-2 mb-3">
-
                     <span
                       className="spinner-border spinner-border-sm text-primary"
                       aria-hidden="true"
@@ -609,7 +780,6 @@ export default function Perfil() {
                   </button>
 
                   <p className="small text-secondary mt-3 mb-0">
-                    No necesitas actualizar la página.
                     ListSmart comprobará automáticamente
                     cuando hayas verificado tu correo.
                     Revisa también la carpeta de spam.
@@ -620,7 +790,7 @@ export default function Perfil() {
 
             </div>
 
-            {/* NUEVO: cuenta de Google */}
+            {/* Cuenta de Google */}
             <div
               className="rounded-3 p-3 p-md-4 mt-4"
               style={{
@@ -639,7 +809,6 @@ export default function Perfil() {
                 <h3 className="h5 fw-bold mb-0">
                   Cuenta de Google
                 </h3>
-
               </div>
 
               {googleVinculado ? (
@@ -661,7 +830,7 @@ export default function Perfil() {
                 <>
                   <p className="text-secondary small mb-3">
                     Vincula Google a tu cuenta actual
-                    para poder iniciar sesión sin escribir
+                    para iniciar sesión sin escribir
                     tu contraseña. Tus listas y fotografías
                     conservarán el mismo UID.
                   </p>
@@ -673,6 +842,7 @@ export default function Perfil() {
                     disabled={cargando}
                   >
                     <i className="bi bi-google me-2"></i>
+
                     {cargando
                       ? 'Procesando...'
                       : 'Vincular mi cuenta con Google'}
@@ -690,9 +860,8 @@ export default function Perfil() {
 
             </div>
 
-            {/* Información de la cuenta */}
+            {/* Información de cuenta */}
             <div className="mt-4">
-
               <h3 className="h6 fw-bold mb-3">
                 Información de la cuenta
               </h3>
@@ -700,7 +869,6 @@ export default function Perfil() {
               <div className="border rounded-3">
 
                 <div className="p-3 border-bottom">
-
                   <span className="small text-secondary d-block mb-1">
                     Correo electrónico
                   </span>
@@ -708,11 +876,9 @@ export default function Perfil() {
                   <span className="fw-medium text-break">
                     {usuario.email}
                   </span>
-
                 </div>
 
                 <div className="p-3 border-bottom">
-
                   <span className="small text-secondary d-block mb-1">
                     Estado de verificación
                   </span>
@@ -728,11 +894,9 @@ export default function Perfil() {
                       ? 'Verificado'
                       : 'Pendiente'}
                   </span>
-
                 </div>
 
                 <div className="p-3">
-
                   <span className="small text-secondary d-block mb-1">
                     Acceso con Google
                   </span>
@@ -748,7 +912,6 @@ export default function Perfil() {
                       ? 'Vinculado'
                       : 'No vinculado'}
                   </span>
-
                 </div>
 
               </div>
@@ -756,7 +919,6 @@ export default function Perfil() {
 
             {/* Cerrar sesión */}
             <div className="mt-4 pt-3 border-top">
-
               <button
                 type="button"
                 className="btn btn-outline-danger"
@@ -769,7 +931,6 @@ export default function Perfil() {
                   ? 'Procesando...'
                   : 'Cerrar sesión'}
               </button>
-
             </div>
 
           </div>
@@ -777,12 +938,11 @@ export default function Perfil() {
 
       ) : (
 
-        /* INICIO DE SESIÓN Y REGISTRO */
+        /* LOGIN Y REGISTRO */
         <div className="row g-4">
 
-          {/* Presentación de ListSmart */}
+          {/* Presentación */}
           <div className="col-lg-5">
-
             <div
               className="rounded-4 p-4 h-100"
               style={{
@@ -811,7 +971,6 @@ export default function Perfil() {
               </p>
 
               <div className="d-flex align-items-start gap-3 mt-4">
-
                 <i className="bi bi-cloud-check text-primary fs-5"></i>
 
                 <div>
@@ -824,11 +983,9 @@ export default function Perfil() {
                     distintos dispositivos.
                   </span>
                 </div>
-
               </div>
 
               <div className="d-flex align-items-start gap-3 mt-3">
-
                 <i className="bi bi-wifi-off text-primary fs-5"></i>
 
                 <div>
@@ -841,11 +998,9 @@ export default function Perfil() {
                     cuando no tengas Internet.
                   </span>
                 </div>
-
               </div>
 
               <div className="d-flex align-items-start gap-3 mt-3">
-
                 <i className="bi bi-shield-check text-primary fs-5"></i>
 
                 <div>
@@ -858,7 +1013,6 @@ export default function Perfil() {
                     Authentication.
                   </span>
                 </div>
-
               </div>
 
             </div>
@@ -866,12 +1020,10 @@ export default function Perfil() {
 
           {/* Formulario */}
           <div className="col-lg-7">
-
             <div className="card border-0 shadow-sm rounded-4 h-100">
               <div className="card-body p-4 p-md-5">
 
                 <div className="text-center mb-4">
-
                   <div
                     className="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                     style={{
@@ -895,14 +1047,12 @@ export default function Perfil() {
                       ? 'Regístrate para comenzar a organizar tus listas.'
                       : 'Accede a tus listas y fotografías guardadas.'}
                   </p>
-
                 </div>
 
                 <form onSubmit={enviarFormulario}>
 
-                  {/* Correo electrónico */}
+                  {/* Correo */}
                   <div className="mb-3">
-
                     <label
                       htmlFor="correo"
                       className="form-label fw-medium"
@@ -911,7 +1061,6 @@ export default function Perfil() {
                     </label>
 
                     <div className="input-group">
-
                       <span className="input-group-text bg-light">
                         <i className="bi bi-envelope"></i>
                       </span>
@@ -928,13 +1077,11 @@ export default function Perfil() {
                         autoComplete="email"
                         required
                       />
-
                     </div>
                   </div>
 
                   {/* Contraseña con ojito */}
                   <div className="mb-4">
-
                     <label
                       htmlFor="contrasena"
                       className="form-label fw-medium"
@@ -943,7 +1090,6 @@ export default function Perfil() {
                     </label>
 
                     <div className="input-group">
-
                       <span className="input-group-text bg-light">
                         <i className="bi bi-lock"></i>
                       </span>
@@ -1001,7 +1147,6 @@ export default function Perfil() {
                           aria-hidden="true"
                         ></i>
                       </button>
-
                     </div>
 
                     {registro && (
@@ -1009,10 +1154,9 @@ export default function Perfil() {
                         Utiliza al menos 6 caracteres.
                       </p>
                     )}
-
                   </div>
 
-                  {/* Acceso mediante contraseña */}
+                  {/* Botón de acceso */}
                   <button
                     type="submit"
                     className="btn btn-primary w-100 py-2 fw-semibold"
@@ -1026,18 +1170,15 @@ export default function Perfil() {
                       } me-2`}
                     ></i>
 
-                    {cargando
-                      ? 'Procesando...'
-                      : registro
-                        ? 'Crear cuenta'
-                        : 'Iniciar sesión'}
+                    {registro
+                      ? 'Crear cuenta'
+                      : 'Iniciar sesión'}
                   </button>
 
                 </form>
 
-                {/* NUEVO: acceso mediante Google */}
+                {/* Separador */}
                 <div className="d-flex align-items-center gap-3 my-4">
-
                   <div className="border-top flex-grow-1"></div>
 
                   <span className="small text-secondary text-nowrap">
@@ -1045,9 +1186,9 @@ export default function Perfil() {
                   </span>
 
                   <div className="border-top flex-grow-1"></div>
-
                 </div>
 
+                {/* Acceso con Google */}
                 <button
                   type="button"
                   className="btn btn-outline-secondary w-100 py-2 fw-semibold"
@@ -1062,7 +1203,7 @@ export default function Perfil() {
                   Continuar con Google
                 </button>
 
-                {/* Cambiar entre registro y acceso */}
+                {/* Cambio de formulario */}
                 <div className="text-center mt-4 pt-3 border-top">
 
                   <p className="text-secondary small mb-2">
